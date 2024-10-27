@@ -1,0 +1,104 @@
+environment:
+  name: me-dev # drives the naming of kubernetes nodes, host containers etc
+  base-dir: ${PWD}/.local # where kubernetes logs/storage, and various config files are stored
+  expand-base-dir-vars: true # set to false if you use absolute path for base-dir; true if you use relative/expanded path
+  
+  # At the moment, only k3d is supported, with a docker-compliant runtime
+  # pure podman has bugs with k3d, and kind has not been tested yet
+  # hopefully will add support for both podman and kind in the future
+  provider:
+    name: k3d # k3d or kind for kubernetes clusters
+    runtime: docker # docker or podman for container runtime
+
+  kubernetes: 
+    api-port: 6443 # port for the API server, will be exposed to the host machine as local-ip:api-port
+    image: rancher/k3s:v1.32.0-k3s1 # the container image to use for running kubernetes; must be compatible with the provider
+
+  nodes: # common settings for all kubernetes nodes
+    servers: 1 # number of control-plane servers/masters
+    workers: 2 # number of worker nodes
+
+  local-ip: 127.0.0.1 # local ip, mapping to the host IP to use
+  local-domain: me.dev # a domain name to use for custom dns resolution and wildcard certificates 
+  local-lb-ports: # list of ports to expose on the load balancer side, mapping to the host machine
+    - 80 # http port for nginx ingress controller
+    - 443 # https port for nginx ingress controller
+
+  registry:
+    name: cr # name, to be used in the final url for the registry, i.e. <registry.name>.<local-domain>
+    storage: # use PVC for storage
+      size: 15Gi # size of PVC  
+
+  app-template-version: "3.6.1" # version for the app template used in the helmfile
+  dnsmasq-version: "2.90" # version for dnsmasq container image tag
+  nginx-ingress-version: "4.12.0" # version for nginx-ingress Helm chart
+
+  services: # additional services to deploy within the cluster 
+    - name: mysql
+      enabled: false # whether or not to install this component and expose the port(s)
+      password-protected: true # flag indicating if the service is password protected
+      secret-name: mysql # name of the secret containing the password
+      password-field: mysql-root-password # name of the password field in the secret
+      ports: 
+        - 3306 # port to expose on the host machine
+      storage: # use PVC for storage
+        size: 10Gi # size of PVC
+      config:
+        chart: bitnami/mysql # the chart to use
+        version: 12.2.2 # the chart version to use
+        values: # additional values to use for the chart
+          auth:
+            createDatabase: false # whether or not to create a database
+
+    - name: postgres
+      enabled: true # whether or not to install this component and expose the port(s)
+      password-protected: true # flag indicating if the service is password protected
+      secret-name: postgres # name of the secret containing the password
+      password-field: postgres-password # name of the password field in the secret
+      ports: 
+        - 5432
+      storage: # use PVC for storage
+        size: 5Gi
+      config:
+        chart: bitnami/postgresql # the chart to use
+        version: 16.4.5 # the chart version to use
+
+    - name: mongodb
+      enabled: false # whether or not to install this component and expose the port(s)
+      password-protected: true # flag indicating if the service is password protected
+      secret-name: mongodb # name of the secret containing the password
+      password-field: mongodb-root-password # name of the password field in the secret
+      ports: 
+        - 27017 # port to expose on the host machine
+      storage: # use PVC for storage
+        size: 5Gi # size of PVC
+      config:
+        chart: bitnami/mongodb # the chart to use
+        version: 16.4.2 # the chart version to use
+  
+    - name: rabbitmq
+      enabled: false # whether or not to install this component and expose the port(s)
+      password-protected: true # flag indicating if the service is password protected
+      secret-name: rabbitmq # name of the secret containing the password
+      password-field: rabbitmq-password # name of the password field in the secret
+      ports: 
+        - 5672 # port to expose on the host machine
+      storage: # use PVC for storage
+        size: 1Gi # size of PVC
+      config:
+        chart: bitnami/rabbitmq # the chart to use
+        version: 15.2.4 # the chart version to use
+
+    - name: dragonfly
+      enabled: false # whether or not to install this component and expose the port(s)
+      password-protected: false # flag indicating if the service is password protected
+      ports: 
+        - 6379 
+      storage:
+        size: 1Gi
+      config:
+        chart: oci://ghcr.io/dragonflydb/dragonfly/helm/dragonfly # the chart to use
+        version: v1.26.1 # the chart version to use
+        values: # additional values to use for the chart
+          image:
+            repository: ghcr.io/dragonflydb/dragonfly # the image to use

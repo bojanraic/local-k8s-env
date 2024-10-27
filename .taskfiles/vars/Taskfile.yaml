@@ -1,0 +1,68 @@
+# yaml-language-server: $schema=https://taskfile.dev/schema.json
+version: "3"
+vars:
+  CONFIG_FILE: .k8s-env.yaml
+  BASE_DIR:
+    sh: yq e '.environment.base-dir' {{.CONFIG_FILE}}
+  ENV_NAME:
+    sh: yq e '.environment.name' {{.CONFIG_FILE}}
+  CLUSTER_NAME: "{{.ENV_NAME}}"
+  K8S_DIR: "{{.BASE_DIR}}/{{.CLUSTER_NAME}}"
+  LOCAL_DOMAIN:
+    sh: yq e '.environment.local-domain' {{.CONFIG_FILE}}
+  LOCAL_IP:
+    sh: yq e '.environment.local-ip' {{.CONFIG_FILE}}
+  REGISTRY_NAME:
+    sh: yq e '.environment.registry.name' {{.CONFIG_FILE}}
+  SERVERS:
+    sh: yq e '.environment.nodes.servers' {{.CONFIG_FILE}}
+  WORKERS:
+    sh: yq e '.environment.nodes.workers' {{.CONFIG_FILE}}
+  REGISTRY_HOST: "{{.REGISTRY_NAME}}.{{.LOCAL_DOMAIN}}"
+  PROVIDER: "k3d"
+  PROVIDER_BINARY: "k3d"
+  RUNTIME: "docker"
+  DNSMASQ_VERSION:
+    sh: yq e '.environment.dnsmasq-version' {{.CONFIG_FILE}}
+  RUNTIME_BINARY:
+    sh: |
+      if [ "{{.RUNTIME}}" = "podman" ]; then
+        echo "podman"
+      else
+        echo "docker"
+      fi
+  CONTAINER_NETWORK_NAME:
+    sh: |
+      if [ "{{.RUNTIME}}" = "podman" ]; then
+        echo "podman"
+      elif [ "{{.PROVIDER}}" = "k3d" ]; then
+        echo "k3d-{{.ENV_NAME}}-net"
+      else
+        echo "host"
+      fi
+  DNS_CONTAINER_NAME:
+    sh: |
+      if [ "{{.PROVIDER}}" = "k3d" ]; then
+        echo "k3d-{{.CLUSTER_NAME}}-dns"
+      else
+        echo "{{.CLUSTER_NAME}}-dns"
+      fi
+  ROOT_CA_PATH:
+    sh: |
+      if command -v mkcert >/dev/null 2>&1; then
+        mkcert -CAROOT
+      else
+        echo "Error: mkcert is not installed. Please install mkcert to proceed." >&2
+        exit 1
+      fi
+  KUBECONFIG_PATH: "{{.K8S_DIR}}/kubeconfig"
+  TEST_DIR: "{{.ROOT_DIR}}/tests"
+  REG_TEST_DIR: "{{.TEST_DIR}}/registry"
+  OS:
+    sh: uname
+  ENABLED_SERVICES:
+    sh: |
+      yq e '.environment.services[] | select(.enabled == true) | .name + ":" + (.ports[] | .host | tostring)' {{.CONFIG_FILE}} | paste -sd " " -
+
+tasks:
+  default: echo "The vars taskfile contains only variable definitions"

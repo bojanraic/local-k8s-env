@@ -1,0 +1,31 @@
+{
+  "extends": [
+    "config:base"
+  ],
+  "fileMatch": [
+    "^\\.k8s-env\\.yaml$"
+  ],
+  "packageRules": [
+    {
+      "matchPackageNames": [
+        "rancher/k3s",
+        "bitnami/mysql",
+        "bitnami/postgresql",
+        "bitnami/mongodb",
+        "bitnami/rabbitmq",
+        "oci://ghcr.io/dragonflydb/dragonfly/helm/dragonfly"
+      ],
+      "enabled": true,
+      "updateTypes": [
+        "minor",
+        "patch"
+      ]
+    }
+  ],
+  "versioning": {
+    "enabled": true
+  },
+  "schedule": [
+    "after 10pm and before 6am on every weekday"
+  ]
+}

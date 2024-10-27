@@ -1,0 +1,18 @@
+# yaml-language-server: $schema=https://taskfile.dev/schema.json
+version: "3"
+
+tasks:
+  default: task --list --taskfile "{{.ROOT_DIR}}/.taskfiles/help/Taskfile.yaml"
+
+  cluster-info: 
+    desc: "Basic info about the kubernetes cluster"
+    cmds:
+      - "echo 🏢 Cluster Name: {{.CLUSTER_NAME}}"
+      - kubectl --kubeconfig {{.KUBECONFIG_PATH}} cluster-info
+    preconditions:
+      - sh: |
+          {{.RUNTIME_BINARY}} cluster list | grep -q "{{.CLUSTER_NAME}}"
+        msg: "❌ Local cluster {{.CLUSTER_NAME}} does not exist."
+      - sh: |
+          test -f {{.KUBECONFIG_PATH}}
+        msg: "❌ Kubeconfig file {{.KUBECONFIG_PATH}} for {{.CLUSTER_NAME}} does not exist."

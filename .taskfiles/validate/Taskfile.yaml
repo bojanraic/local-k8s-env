@@ -1,0 +1,58 @@
+# yaml-language-server: $schema=https://taskfile.dev/schema.json
+version: "3"
+
+tasks:
+  default: task --list --taskfile "{{.ROOT_DIR}}/.taskfiles/validate/Taskfile.yaml"
+
+  build-push-local-registry: 
+    desc: "Builds and pushes a sample image to the local registry"
+    cmds:
+      - "echo 🏗️ Building and pushing a sample image to local registry"
+      - "{{.RUNTIME_BINARY}} build {{.REG_TEST_DIR}} -t {{.REGISTRY_HOST}}/registry-test:latest"
+      - "{{.RUNTIME_BINARY}} push {{.REGISTRY_HOST}}/registry-test:latest"
+
+
+  deploy-test-helm-release:
+    desc: Deploy a sample Helm release using an image from the local registry
+    cmds:
+      - python3 {{.ROOT_DIR}}/.scripts/generate_validation.py '{{.REGISTRY_HOST}}' 'registry-test' 'latest' 'registry-test.{{.LOCAL_DOMAIN}}' '{{.REG_TEST_DIR}}/test-values.yaml'
+      - |
+          helm upgrade --install --wait registry-test bjw-s/app-template \
+            --version 3.5.1 --namespace default \
+            --values {{.REG_TEST_DIR}}/test-values.yaml
+      - rm -f {{.REG_TEST_DIR}}/test-values.yaml
+    generates:
+      - "{{.REG_TEST_DIR}}/test-values.yaml"
+    status:
+      - helm list --deployed --namespace default | grep -q registry-test
+
+  local-registry:
+    desc: "Validates local registry by building and pushing an image, then deploying a Helm release using that image"
+    cmds:
+      - task: build-push-local-registry
+      - task: deploy-test-helm-release
+
+  app:
+    desc: "Validates sample app deployed via Helm release from local registry"
+    cmds:
+      - sleep 10
+      - echo -e "\n\n🌐 Registry Test (https://registry-test.{{.LOCAL_DOMAIN}}/):\n"
+      - curl https://registry-test.{{.LOCAL_DOMAIN}}/
+
+  tcp-services:
+    desc: "Validate TCP services by attempting to connect using their CLI"
+    cmds:
+    - |
+      echo "🔍 Validating TCP services:"
+      ENABLED_SERVICES=($(yq e '.environment.services[] | select(.enabled == true) | .name' {{.CONFIG_FILE}}))
+      for service in "${ENABLED_SERVICES[@]}"; do
+        ports=($(yq e ".environment.services[] | select(.name == \"$service\") | .ports[]" {{.CONFIG_FILE}}))
+        for port in "${ports[@]}"; do
+          echo "🔄 Validating $service on port $port..."
+          if nc -zv $service.{{.LOCAL_DOMAIN}} $port; then
+            echo "✅ $service is reachable on port $port"
+          else
+            echo "❌ $service is NOT reachable on port $port"
+          fi
+        done
+      done

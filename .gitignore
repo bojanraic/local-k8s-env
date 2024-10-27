@@ -1,0 +1,12 @@
+.env
+.tmp/
+.local/
+.private/
+.task/
+*.secret.env
+*.secret.yaml
+*.key
+.decrypted~*
+.DS_Store
+kubeconfig
+tests/registry/*values*.y?ml
