@@ -1,0 +1,16 @@
+# yaml-language-server: $schema=https://taskfile.dev/schema.json
+version: "3"
+
+tasks:
+  check:
+    desc: Check and install required dependencies
+    silent: true
+    cmds:
+      - mise install
+      - mise run deps
+
+  deps:
+    desc: Install Python dependencies
+    silent: true
+    cmds:
+      - mise run deps 

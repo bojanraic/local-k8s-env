@@ -1,0 +1,87 @@
+apiVersion: k3d.io/v1alpha5
+kind: Simple
+metadata:
+  name: {{ env_name }}
+servers: {{ nodes.servers }}
+agents: {{ nodes.workers }}
+kubeAPI:
+  host: {{ local_ip }}
+  hostPort: "{{ kubernetes.api_port }}"
+image: {{ kubernetes.image }}
+network: {% if runtime == 'podman' %}podman{% else %}k3d-{{ env_name }}-net{% endif %}
+
+ports:
+  # Load balancer ports
+  {% for port in local_lb_ports %}
+  - port: "{{ port }}:{{ port }}"
+    nodeFilters:
+      - loadbalancer
+  {% endfor %}
+  # Service ports
+  {% for service in services if service.enabled %}
+  {% for port in service.ports %}
+  - port: "{{ port }}:{{ port }}"
+    nodeFilters:
+      - loadbalancer
+  {% endfor %}
+  {% endfor %}
+
+volumes:
+  # Node volumes
+  {% for i in range(nodes.servers) %}
+  {% for mount in mounts %}
+  - volume: "{{ k8s_dir }}/{{ mount.local_path }}/server-{{ i }}:{{ mount.node_path }}"
+    nodeFilters:
+      - server:{{ i }}
+  {% endfor %}
+  {% endfor %}
+  {% for i in range(nodes.workers) %}
+  {% for mount in mounts %}
+  - volume: "{{ k8s_dir }}/{{ mount.local_path }}/agent-{{ i }}:{{ mount.node_path }}"
+    nodeFilters:
+      - agent:{{ i }}
+  {% endfor %}
+  {% endfor %}
+  # Extra volumes
+  - volume: "{{ root_ca_path }}:{{ cacert_file }}"
+    nodeFilters:
+      - server:*
+      - agent:*
+  - volume: "{{ k8s_dir }}/config/containerd.yaml:/var/lib/rancher/k3s/agent/etc/containerd/certs.d/{{ local_domain }}/host.yml"
+    nodeFilters:
+      - server:*
+      - agent:*
+
+options:
+  k3d:
+    wait: true
+    timeout: "180s"
+    loadbalancer:
+      configOverrides:
+        - settings.workerConnections=2048
+  k3s:
+    extraArgs:
+      - arg: "--tls-san={{ local_ip }}"
+        nodeFilters:
+          - server:*
+      - arg: "--tls-san={{ env_name }}.{{ local_domain }}"
+        nodeFilters:
+          - server:*
+      - arg: "--disable=traefik"
+        nodeFilters:
+          - server:*
+      - arg: "--disable-network-policy"
+        nodeFilters:
+          - server:*
+      - arg: "--disable-helm-controller"
+        nodeFilters:
+          - server:*
+      - arg: "--disable-cloud-controller"
+        nodeFilters:
+          - server:*
+      - arg: "--secrets-encryption=true"
+        nodeFilters:
+          - server:*
+  kubeconfig:
+    updateDefaultKubeconfig: true
+    switchCurrentContext: true 

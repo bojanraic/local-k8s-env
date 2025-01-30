@@ -3,10 +3,15 @@
     "config:base"
   ],
   "fileMatch": [
-    "^\\.k8s-env\\.yaml$"
+    "^\\.k8s-env\\.yaml$",
+    "(^|/)\\.?mise\\.toml$",
+    "(^|/)\\.?mise/config\\.toml$",
+    "(^|/)[\\w-]*requirements\\.(txt|pip)$"
   ],
   "packageRules": [
     {
+      "description": "Kubernetes and service versions in .k8s-env.yaml",
+      "matchFileNames": [".k8s-env.yaml"],
       "matchPackageNames": [
         "rancher/k3s",
         "bitnami/mysql",
@@ -15,6 +20,53 @@
         "bitnami/rabbitmq",
         "oci://ghcr.io/dragonflydb/dragonfly/helm/dragonfly"
       ],
+      "enabled": true,
+      "updateTypes": [
+        "minor",
+        "patch"
+      ]
+    },
+    {
+      "description": "Python and package management tools in .mise.toml",
+      "matchFileNames": [".mise.toml"],
+      "matchPackageNames": [
+        "python",
+        "uv"
+      ],
+      "datasources": ["pypi"],
+      "enabled": true,
+      "updateTypes": [
+        "minor",
+        "patch"
+      ]
+    },
+    {
+      "description": "Operations tools from aqua in .mise.toml",
+      "matchFileNames": [".mise.toml"],
+      "matchPackageNames": [
+        "aqua:go-task/task",
+        "aqua:helm/helm",
+        "aqua:helmfile/helmfile",
+        "aqua:jqlang/jq",
+        "aqua:kubernetes-sigs/kustomize",
+        "aqua:kubernetes/kubectl",
+        "aqua:mikefarah/yq",
+        "aqua:yannh/kubeconform",
+        "aqua:k3d-io/k3d",
+        "aqua:FiloSottile/mkcert"
+      ],
+      "datasources": ["github-releases", "github-tags"],
+      "enabled": true,
+      "updateTypes": [
+        "minor",
+        "patch"
+      ]
+    },
+    {
+      "description": "Python dependencies in requirements.txt",
+      "matchFileNames": ["requirements.txt"],
+      "matchPackagePatterns": [".*"],
+      "datasources": ["pypi"],
       "enabled": true,
       "updateTypes": [
         "minor",

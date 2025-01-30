@@ -64,21 +64,34 @@ tasks:
         [ "$LABELED_COUNT" -eq "{{.WORKERS}}" ]
 
   fetch-service-secrets:
-    desc: "Fetch and decode passwords for enabled services and write them to a file"
+    desc: Fetch secrets for enabled services
+    silent: true
     cmds:
       - |
-        # Fetch the list of enabled, password-protected services
-        PASSWORD_PROTECTED_SERVICES=($(yq e '.environment.services[] | select(.enabled == true and .password-protected == true) | .name' {{.CONFIG_FILE}}))
-        OUTPUT_FILE="{{.K8S_DIR}}/service-secrets.txt"
-        > $OUTPUT_FILE  # Clear the file before writing
+        if [ "{{.USE_SERVICE_PRESETS}}" = "true" ]; then
+          # Get list of enabled services first
+          ENABLED_SERVICES=($(yq e '.environment.services[] | select(.enabled == true) | .name' {{.CONFIG_FILE}}))
+          
+          OUTPUT_FILE="{{.K8S_DIR}}/service-secrets.txt"
+          > $OUTPUT_FILE  # Clear the file before writing
 
-        for SERVICE in "${PASSWORD_PROTECTED_SERVICES[@]}"; do
-          SECRET_NAME=$(yq e ".environment.services[] | select(.name == \"$SERVICE\").secret-name" {{.CONFIG_FILE}})  # Get secret name
-          PASSWORD_FIELD=$(yq e ".environment.services[] | select(.name == \"$SERVICE\").password-field" {{.CONFIG_FILE}})  # Get password field
-          PASSWORD=$(kubectl get secret $SECRET_NAME -n $SERVICE -o jsonpath="{.data.$PASSWORD_FIELD}" | base64 --decode)
-          echo "Service $SERVICE, Password: $PASSWORD" >> $OUTPUT_FILE
-        done
+          for SERVICE in "${ENABLED_SERVICES[@]}"; do
+            # Check if service is password-protected in presets
+            IS_PROTECTED=$(yq e ".service_auth_presets.$SERVICE.password-protected" {{.ROOT_DIR}}/templates/service_presets.yaml)
+            if [ "$IS_PROTECTED" = "true" ]; then
+              # Get secret name and field from presets
+              SECRET_NAME=$(yq e ".service_auth_presets.$SERVICE.secret-name" {{.ROOT_DIR}}/templates/service_presets.yaml)
+              PASSWORD_FIELD=$(yq e ".service_auth_presets.$SERVICE.password-field" {{.ROOT_DIR}}/templates/service_presets.yaml)
+              PASSWORD=$(kubectl get secret $SECRET_NAME -n $SERVICE -o jsonpath="{.data.$PASSWORD_FIELD}" | base64 --decode)
+              echo "Service $SERVICE, Password: $PASSWORD" >> $OUTPUT_FILE
+            fi
+          done
 
-        if [ -s "$OUTPUT_FILE" ]; then
-          echo "🔑 Passwords for enabled password-protected services have been written to $OUTPUT_FILE"
+          if [ -s "$OUTPUT_FILE" ]; then
+            echo "🔑 Passwords for enabled password-protected services have been written to $OUTPUT_FILE"
+          fi
+        else
+          echo "ℹ️  Service presets are disabled (use-service-presets: false)"
+          echo "👉 You are responsible for managing service secrets."
+          echo "   Refer to each service's helm chart documentation for configuration"
         fi

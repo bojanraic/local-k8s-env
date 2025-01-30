@@ -1,0 +1,6 @@
+host."https://{{ registry_name }}.{{ local_domain }}":
+  capabilities:
+    - pull
+    - resolve
+    - push
+  ca_file: {{ cacert_file }} 

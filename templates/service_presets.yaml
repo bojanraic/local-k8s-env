@@ -1,0 +1,72 @@
+# Default ports for services;
+# used to expose TCP services on the host machine via nginx ingress controller
+service_ports:
+  mysql: 3306
+  postgres: 5432
+  mongodb: 27017
+  rabbitmq: 5672
+  dragonfly: 6379
+
+# Default secrets settings for services; 
+# based on default behavior of helm charts
+# used to fetch secrets from kubernetes and write them to a file
+# if you don't override these for each helm release, helm charts where password-protected is true
+# will generate a random password and store it in the specified secret, under the specified field
+
+service_auth_presets:
+  mysql:
+    password-protected: true
+    secret-name: mysql
+    password-field: mysql-root-password
+  postgres:
+    password-protected: true
+    secret-name: postgres
+    password-field: postgres-password
+  mongodb:
+    password-protected: true
+    secret-name: mongodb
+    password-field: mongodb-root-password
+  rabbitmq:
+    password-protected: true
+    secret-name: rabbitmq
+    password-field: rabbitmq-password
+  dragonfly:
+    password-protected: false
+
+# Default values for services;
+# used to configure helm charts
+# primarily used to ensure consistent naming and persistence configuration
+service_values_presets:
+  mysql:
+    fullNameOverride: mysql
+    nameOverride: mysql
+    primary:
+      persistence:
+        enabled: true
+  
+  postgres:
+    fullNameOverride: postgres
+    nameOverride: postgres
+    architecture: standalone
+    primary:
+      persistence:
+        enabled: true
+  
+  mongodb:
+    fullNameOverride: mongodb
+    nameOverride: mongodb
+    useStatefulSet: true
+    persistence:
+      enabled: true
+  
+  dragonfly:
+    fullNameOverride: dragonfly
+    nameOverride: dragonfly
+    storage:
+      enabled: true
+  
+  rabbitmq:
+    fullNameOverride: rabbitmq
+    nameOverride: rabbitmq
+    persistence:
+      enabled: true

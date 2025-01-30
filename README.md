@@ -24,24 +24,25 @@ The following are required:
 
 - macOS
 - Docker (or docker-compatible runtime, e.g. OrbStack)
-- k3d (https://k3d.io/)
-- task (https://taskfile.dev/)
+- [mise](https://mise.jdx.dev/) for tool version management
 
 NOTES: 
-
-- Podman is not supported yet, but is planned to be added in the future (There are bugs in the container runtime that are making Podman incompatible with this setup)
-- kind is not supported yet, but is planned to be added in the future
+- Podman is not supported yet due to container runtime bugs
+- kind is planned to be supported in the future
 - Linux support is planned to be added in the future (there are some intricacies around DNS resolution and systemd configuration that need to be ironed out)
 
-These tools are also required and will be automatically installed if missing:
+All other dependencies are automatically managed by mise:
+- Python 3.13
 - kubectl
 - k3d
 - Helm
 - Helmfile
 - mkcert
-- Python 3.12+
 - go-task
 - yq
+- jq
+- kustomize
+- kubeconform
 
 ## Quick Start
 
@@ -51,21 +52,65 @@ git clone <repository-url>
 cd <repository-name>
 ```
 
-2. Configure your environment by editing `.k8s-env.yaml`:
+2. Install mise and initialize the environment:
+```bash
+# Install mise (if not already installed)
+curl https://mise.run | sh
+
+# Install tools and dependencies
+mise install
+task deps
+```
+
+3. Configure your environment by editing `.k8s-env.yaml`:
 ```yaml
 environment:
-name: my-local-env
-local-ip: 127.0.0.1 # Change to your IP
-local-domain: me.local # Change if desired
+  name: my-local-env
+  local-ip: 127.0.0.1 # Change to your IP
+  local-domain: me.local # Change if desired
 ```
-3. Create the environment:
+
+4. Create the environment:
 ```bash
 task create-env
 ```
-4. Verify the setup:
+
+5. Verify the setup:
 ```bash
 task validate-env
 ```
+
+## Project Structure
+
+```
+.
+├── .k8s-env.yaml           # Main configuration file
+├── .mise.toml              # Tool version management
+├── templates/              # Jinja2 templates for configuration
+│   ├── containerd/         # Containerd configuration templates
+│   ├── coredns/            # CoreDNS configuration templates
+│   ├── dnsmasq/            # DNSmasq configuration templates
+│   ├── helmfile/           # Helmfile configuration templates
+│   ├── k3d/                # k3d cluster configuration templates
+│   ├── tests/              # Test configuration templates
+│   └── presets.yaml        # Service presets and default values
+├── .local/                 # Runtime data (git-ignored)
+├── .scripts/               # Python scripts for configuration
+├── .taskfiles/             # Task definitions
+└── Taskfile.yaml           # Main task definitions
+```
+
+### Templates Directory
+
+The `templates/` directory contains all Jinja2 templates used to generate configurations:
+
+- `containerd/`: Container runtime configurations
+- `coredns/`: Kubernetes DNS service configurations
+- `dnsmasq/`: Local DNS resolver configurations
+- `helmfile/`: Helm release definitions
+- `k3d/`: Kubernetes cluster configurations
+- `tests/`: Validation test configurations
+- `presets.yaml`: Default service configurations and ports
 
 ## Configuration
 
@@ -96,36 +141,36 @@ Use `task --list` to see all available tasks. Main tasks include:
 
 ```
 .
-├── .k8s-env.yaml           # Main configuration file
-├── .local/                 # Default directory for cluster data and configs
-│   └── <env-name>/         # Environment-specific directory (e.g. my-local-env)
-│       ├── certs/          # TLS certificates and keys
+├── .k8s-env.yaml                      # Main configuration file
+├── .local/                            # Default directory for cluster data and configs
+│   └── <env-name>/                    # Environment-specific directory (e.g. my-local-env)
+│       ├── certs/                     # TLS certificates and keys
 │       │   ├── rootCA.pem             # Root CA certificate
 │       │   ├── <domain>.pem           # Domain certificate
 │       │   ├── <domain>-key.pem       # Domain private key
 │       │   └── <domain>-combined.pem  # Combined cert and key
-│       ├── config/        # Generated configuration files
+│       ├── config/                    # Generated configuration files
 │       │   ├── cluster.yaml           # k3d cluster configuration
 │       │   ├── containerd.yaml        # Container runtime config
 │       │   ├── coredns-custom.yaml    # CoreDNS customization
 │       │   ├── dnsmasq.conf           # Local DNS configuration
 │       │   └── helmfile.yaml          # Helm releases definition
-│       ├── logs/         # Kubernetes node logs
+│       ├── logs/                      # Kubernetes node logs
 │       │   ├── server-0/              # Control plane logs
 │       │   └── agent-*/               # Worker node logs
-│       ├── storage/      # Persistent volume data
+│       ├── storage/                   # Persistent volume data
 │       │   ├── server-0/              # Control plane storage
 │       │   └── agent-*/               # Worker node storage
-│       ├── kubeconfig    # Cluster access configuration
-│       └── service-secrets.txt  # Generated service credentials
-├── .scripts/               # Setup and configuration scripts
-├── .taskfiles/             # Task definitions and variables
-│   ├── help/               # Help tasks
-│   ├── kubernetes/         # Kubernetes-related tasks
-│   ├── validate/           # Validation tasks
-│   └── vars/               # Common variables
-├── tests/                  # Test files for validation
-└── Taskfile.yaml           # Main task definitions
+│       ├── kubeconfig                 # Cluster access configuration
+│       └── service-secrets.txt        # Generated service credentials
+├── .scripts/                          # Setup and configuration scripts
+├── .taskfiles/                        # Task definitions and variables
+│   ├── help/                          # Help tasks
+│   ├── kubernetes/                    # Kubernetes-related tasks
+│   ├── validate/                      # Validation tasks
+│   └── vars/                          # Common variables used in tasks
+├── tests/                             # Test files for validation
+└── Taskfile.yaml                      # Main task definitions
 ```
 
 The `.local` directory (configurable via `base-dir` in `.k8s-env.yaml`) is created when you first run `task create-env` and contains all runtime data and configurations. Key points about the `.local` directory:
@@ -140,22 +185,26 @@ The `.local` directory (configurable via `base-dir` in `.k8s-env.yaml`) is creat
 
 ## Service Management
 
-Services are defined in `.k8s-env.yaml` under the `services` section. Each service can be:
+Services are defined in two places:
 
-- Enabled/disabled via `enabled: true/false`
-- Configured with storage size
-- Exposed on specific ports
+1. `.k8s-env.yaml`: Service enablement and specific configurations
+2. `templates/service_presets.yaml`: Default service configurations and ports
 
-Example service configuration:
+### Service Presets
+
+The `service_presets.yaml` file defines default configurations for supported services:
+
 ```yaml
-services:
-  - name: postgres
-    enabled: true
-    password-protected: true # whether or not the associated helm chart involves password protection for the service
-    ports: 
-      - 5432
-    storage:
-      size: 5Gi
+service_ports:
+  mysql: 3306
+  postgres: 5432
+  # ... other service ports
+
+service_values_presets:
+  mysql:
+    fullNameOverride: mysql
+    nameOverride: mysql
+    # ... other default values
 ```
 
 ## Using Local Services

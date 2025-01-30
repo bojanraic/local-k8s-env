@@ -6,25 +6,30 @@ tasks:
 
   build-push-local-registry: 
     desc: "Builds and pushes a sample image to the local registry"
+    silent: true
     cmds:
       - "echo 🏗️ Building and pushing a sample image to local registry"
-      - "{{.RUNTIME_BINARY}} build {{.REG_TEST_DIR}} -t {{.REGISTRY_HOST}}/registry-test:latest"
-      - "{{.RUNTIME_BINARY}} push {{.REGISTRY_HOST}}/registry-test:latest"
-
+      - "{{.RUNTIME_BINARY}} build {{.REG_TEST_DIR}} -t {{.REGISTRY_HOST}}/{{.REGISTRY_NAME}}-test:latest"
+      - "{{.RUNTIME_BINARY}} push {{.REGISTRY_HOST}}/{{.REGISTRY_NAME}}-test:latest"
 
   deploy-test-helm-release:
     desc: Deploy a sample Helm release using an image from the local registry
+    silent: true
+    vars:
+      VENV: .venv
     cmds:
-      - python3 {{.ROOT_DIR}}/.scripts/generate_validation.py '{{.REGISTRY_HOST}}' 'registry-test' 'latest' 'registry-test.{{.LOCAL_DOMAIN}}' '{{.REG_TEST_DIR}}/test-values.yaml'
       - |
-          helm upgrade --install --wait registry-test bjw-s/app-template \
-            --version 3.5.1 --namespace default \
-            --values {{.REG_TEST_DIR}}/test-values.yaml
+         source {{.VENV}}/bin/activate && python3 {{.ROOT_DIR}}/.scripts/generate_validation.py \
+          '{{.REGISTRY_HOST}}' '{{.REGISTRY_NAME}}-test' 'latest' '{{.REGISTRY_NAME}}-test.{{.LOCAL_DOMAIN}}' '{{.REG_TEST_DIR}}/test-values.yaml'
+      - |
+        helm upgrade --install --wait {{.REGISTRY_NAME}}-test bjw-s/app-template \
+          --version {{.APP_TEMPLATE_VERSION}} --namespace default \
+          --values {{.REG_TEST_DIR}}/test-values.yaml
       - rm -f {{.REG_TEST_DIR}}/test-values.yaml
     generates:
       - "{{.REG_TEST_DIR}}/test-values.yaml"
     status:
-      - helm list --deployed --namespace default | grep -q registry-test
+      - helm list --deployed --namespace default | grep -q '{{.REGISTRY_NAME}}-test'
 
   local-registry:
     desc: "Validates local registry by building and pushing an image, then deploying a Helm release using that image"
@@ -34,13 +39,17 @@ tasks:
 
   app:
     desc: "Validates sample app deployed via Helm release from local registry"
+    silent: true
+    vars:
+      TEST_NAME: "{{.REGISTRY_NAME}}-test"
     cmds:
       - sleep 10
-      - echo -e "\n\n🌐 Registry Test (https://registry-test.{{.LOCAL_DOMAIN}}/):\n"
-      - curl https://registry-test.{{.LOCAL_DOMAIN}}/
+      - echo -e "\n\n🌐 Registry Test (https://{{.TEST_NAME}}.{{.LOCAL_DOMAIN}}/):\n"
+      - curl https://{{.TEST_NAME}}.{{.LOCAL_DOMAIN}}/
 
   tcp-services:
-    desc: "Validate TCP services by attempting to connect using their CLI"
+    desc: "Validate TCP services are reachable"
+    silent: true
     cmds:
     - |
       echo "🔍 Validating TCP services:"

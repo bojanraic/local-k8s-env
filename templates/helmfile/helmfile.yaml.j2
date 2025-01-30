@@ -1,0 +1,115 @@
+repositories:
+  - name: ingress-nginx
+    url: https://kubernetes.github.io/ingress-nginx
+  - name: bitnami
+    url: https://charts.bitnami.com/bitnami
+  - name: bjw-s
+    url: https://bjw-s.github.io/helm-charts/
+
+helmDefaults:
+  createNamespace: true
+  wait: true
+  atomic: true
+  timeout: 900
+
+releases:
+  # Ingress NGINX Controller
+  - name: ingress-nginx
+    chart: ingress-nginx/ingress-nginx
+    namespace: ingress-nginx
+    version: {{ nginx_ingress_version }}
+    values:
+      - controller:
+          extraArgs:
+            default-ssl-certificate: kube-system/wildcard-tls
+        tcp:
+          {% for service in services if service.enabled %}
+          {% for port in service.ports %}
+          "{{ port }}": {{ service.namespace | default(service.name) }}/{{ service.name }}:{{ service_ports[service.name] }}
+          {% endfor %}
+          {% endfor %}
+
+  # Registry
+  - name: registry
+    namespace: registry
+    chart: bjw-s/app-template
+    version: {{ app_template_version }}
+    needs:
+      - ingress-nginx/ingress-nginx
+    values:
+      - controllers:
+          registry:
+            type: statefulset
+            containers:
+              app:
+                image:
+                  repository: registry
+                  tag: "2"
+        service:
+          app:
+            controller: registry
+            ports:
+              http:
+                port: 5000
+        ingress:
+          app:
+            className: nginx
+            annotations:
+              nginx.ingress.kubernetes.io/ssl-redirect: "true"
+              nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
+              kubernetes.io/ingress.allow-http: "false"
+              nginx.ingress.kubernetes.io/proxy-body-size: "4096m"
+            hosts:
+              - host: {{ registry_name }}.{{ local_domain }}
+                paths:
+                  - path: /
+                    service:
+                      identifier: app
+                      port: http
+            tls:
+              - hosts:
+                  - {{ registry_name }}.{{ local_domain }}
+        persistence:
+          data:
+            enabled: true
+            size: {{ registry.storage.size }}
+            retain: true
+            type: persistentVolumeClaim
+            accessMode: ReadWriteOnce
+            globalMounts:
+              - path: /var/lib/registry
+        env:
+          REGISTRY_HTTP_ADDR: ":5000"
+          REGISTRY_STORAGE_FILESYSTEM_ROOTDIRECTORY: /var/lib/registry
+
+  # Service releases
+  {% for service in services if service.enabled %}
+  - name: {{ service.name }}
+    namespace: {{ service.namespace | default(service.name) }}
+    chart: {{ service.config.chart }}
+    version: {{ service.config.version }}
+    values:
+      {% set base_values = service_values_presets[service.name] %}
+      - architecture: {{ base_values.architecture | default('standalone') }}
+        fullNameOverride: {{ service.name }}
+        nameOverride: {{ service.name }}
+        {% if 'primary' in base_values %}
+        primary:
+          persistence:
+            enabled: true
+            size: {{ service.storage.size }}
+        {% endif %}
+        {% if 'persistence' in base_values %}
+        persistence:
+          enabled: true
+          size: {{ service.storage.size }}
+        {% endif %}
+        {% if 'storage' in base_values %}
+        storage:
+          enabled: true
+          requests: {{ service.storage.size }}
+        {% endif %}
+      {% if service.config.get('values') %}
+      - {{ service.config.values | to_yaml }}
+      {% endif %}
+  {% endfor %} 
