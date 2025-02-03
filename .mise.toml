@@ -9,7 +9,7 @@ uv = "0.5.26"
 
 # Operations tools
 "aqua:go-task/task" = "3.41.0"
-"aqua:helm/helm" = "3.16.0"
+"aqua:helm/helm" = "3.17.0"
 "aqua:helmfile/helmfile" = "0.170.0"
 "aqua:jqlang/jq" = "1.7.0"
 "aqua:kubernetes-sigs/kustomize" = "5.1.0"
