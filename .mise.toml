@@ -16,7 +16,7 @@ uv = "0.5.26"
 "aqua:kubernetes/kubectl" = "1.32.0"
 "aqua:mikefarah/yq" = "4.45.1"
 "aqua:yannh/kubeconform" = "0.6.7"
-"aqua:k3d-io/k3d" = "5.7.5"
+"aqua:k3d-io/k3d" = "5.8.1"
 "aqua:FiloSottile/mkcert" = "1.4.4"
 
 [tasks.deps]
