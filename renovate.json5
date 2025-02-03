@@ -1,50 +1,65 @@
 {
-  "extends": [
-    "config:base"
+  extends: [
+    'config:recommended',
   ],
-  "customManagers": [
+  customManagers: [
     {
-      "fileMatch": ["\\.mise\\.toml$"],
-      "matchStrings": [
-        "aqua:(?<depName>[^\\s]+)\\s*=\\s*\"(?<currentValue>[^\\n]+)"
+      customType: 'regex',
+      fileMatch: [
+        '\\.mise\\.toml$',
       ],
-      "datasourceTemplate": "github-releases"
-    }
+      matchStrings: [
+        'aqua:(?<depName>[^\\s]+)\\s*=\\s*\"(?<currentValue>[^\\n]+)\"',
+      ],
+      datasourceTemplate: 'github-releases',
+    },
   ],
-  "packageRules": [
+  packageRules: [
     {
-      "description": "Kubernetes and service versions in .k8s-env.yaml",
-      "matchManagers": ["kubernetes"],
-      "matchFileNames": [".k8s-env.yaml"],
-      "matchPackageNames": [
-        "rancher/k3s",
-        "bitnami/mysql",
-        "bitnami/postgresql",
-        "bitnami/mongodb",
-        "bitnami/rabbitmq",
-        "oci://ghcr.io/dragonflydb/dragonfly/helm/dragonfly"
+      description: 'Kubernetes and service versions in .k8s-env.yaml',
+      matchManagers: [
+        'kubernetes',
       ],
-      "enabled": true,
-      "updateTypes": [
-        "minor",
-        "patch"
-      ]
+      matchFileNames: [
+        '.k8s-env.yaml',
+      ],
+      matchPackageNames: [
+        'rancher/k3s',
+        'bitnami/mysql',
+        'bitnami/postgresql',
+        'bitnami/mongodb',
+        'bitnami/rabbitmq',
+        'oci://ghcr.io/dragonflydb/dragonfly/helm/dragonfly',
+      ],
+      enabled: true,
+      matchUpdateTypes: [
+        'minor',
+        'patch',
+      ],
     },
     {
-      "description": "Python dependencies in requirements.txt",
-      "matchManagers": ["pip_requirements"],
-      "matchFileNames": ["requirements.txt"],
-      "matchPackagePatterns": [".*"],
-      "datasources": ["pypi"],
-      "enabled": true,
-      "updateTypes": [
-        "minor",
-        "patch"
-      ]
-    }
+      description: 'Python dependencies in requirements.txt',
+      matchManagers: [
+        'pip_requirements',
+      ],
+      matchFileNames: [
+        'requirements.txt',
+      ],
+      matchDatasources: [
+        'pypi',
+      ],
+      enabled: true,
+      matchUpdateTypes: [
+        'minor',
+        'patch',
+      ],
+      matchPackageNames: [
+        '/.*/',
+      ],
+    },
   ],
-  "versioning": "semver",
-  "schedule": [
-    "after 6am and before 1pm on every weekday"
-  ]
+  versioning: 'semver',
+  schedule: [
+    'after 6am and before 1pm every weekday',
+  ],
 }
