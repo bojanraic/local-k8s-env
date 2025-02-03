@@ -2,15 +2,10 @@
   "extends": [
     "config:base"
   ],
-  "fileMatch": [
-    "^\\.k8s-env\\.yaml$",
-    "(^|/)\\.?mise\\.toml$",
-    "(^|/)\\.?mise/config\\.toml$",
-    "(^|/)[\\w-]*requirements\\.(txt|pip)$"
-  ],
   "packageRules": [
     {
       "description": "Kubernetes and service versions in .k8s-env.yaml",
+      "matchManagers": ["kubernetes"],
       "matchFileNames": [".k8s-env.yaml"],
       "matchPackageNames": [
         "rancher/k3s",
@@ -28,6 +23,7 @@
     },
     {
       "description": "Python and package management tools in .mise.toml",
+      "matchManagers": ["mise"],
       "matchFileNames": [".mise.toml"],
       "matchPackageNames": [
         "python",
@@ -42,6 +38,7 @@
     },
     {
       "description": "Operations tools from aqua in .mise.toml",
+      "matchManagers": ["mise"],
       "matchFileNames": [".mise.toml"],
       "matchPackageNames": [
         "aqua:go-task/task",
@@ -64,6 +61,7 @@
     },
     {
       "description": "Python dependencies in requirements.txt",
+      "matchManagers": ["pip_requirements"],
       "matchFileNames": ["requirements.txt"],
       "matchPackagePatterns": [".*"],
       "datasources": ["pypi"],
@@ -74,10 +72,8 @@
       ]
     }
   ],
-  "versioning": {
-    "enabled": true
-  },
+  "versioning": "semver",
   "schedule": [
-    "after 10pm and before 6am on every weekday"
+    "after 6am and before 1pm on every weekday"
   ]
 }
