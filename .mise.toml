@@ -5,7 +5,7 @@ PATH = { value = "{{env.VIRTUAL_ENV}}/bin:{{env.PATH}}" }
 [tools]
 # Python and package management
 python = "3.13"
-uv = "0.5.24"
+uv = "0.5.26"
 
 # Operations tools
 "aqua:go-task/task" = "3.41.0"
