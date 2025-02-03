@@ -9,7 +9,7 @@
         '\\.mise\\.toml$',
       ],
       matchStrings: [
-        'aqua:(?<depName>[^\\s]+)\\s*=\\s*\"(?<currentValue>[^\\n]+)\"',
+        '"aqua:(?<depName>[^"]+)"\\s*=\\s*"(?<currentValue>v?(jq-)?[^"]+)"'
       ],
       datasourceTemplate: 'github-releases',
     },
