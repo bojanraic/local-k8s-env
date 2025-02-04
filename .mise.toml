@@ -17,7 +17,7 @@ uv = "0.5.27"
 # renovate: datasource=github-releases depName=jqlang/jq
 "aqua:jqlang/jq" = "1.7.1"
 # renovate: datasource=github-releases depName=kubernetes-sigs/kustomize
-"aqua:kubernetes-sigs/kustomize" = "5.4.3"
+"aqua:kubernetes-sigs/kustomize" = "5.6.0"
 # renovate: datasource=github-tags depName=kubernetes/kubectl
 "aqua:kubernetes/kubectl" = "1.31.0"
 # renovate: datasource=github-releases depName=mikefarah/yq
