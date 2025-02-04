@@ -2,7 +2,24 @@
   extends: [
     'config:recommended',
   ],
+  hostRules: [
+    {
+      matchHost: 'ghcr.io',
+      hostType: 'docker',
+    },
+  ],
   customManagers: [
+    {
+      customType: 'regex',
+      fileMatch: [
+        '\\.k8s-env\\.yaml$',
+      ],
+      matchStrings: [
+        '\\s*chart:\\s*(?:.*?/)?(?<package>[^/\\s]+)\\s*#.*\\n\\s*#\\s*renovate:\\s*datasource=(?<datasource>[^\\s]+)\\s+depName=(?<depName>[^\\s]+)[^\\n]*\\n\\s*version:\\s*(?<currentValue>\\S+).*',
+      ],
+      datasourceTemplate: '{{datasource}}',
+      packageNameTemplate: '{{depName}}',
+    },
     {
       customType: 'regex',
       fileMatch: [
@@ -17,7 +34,20 @@
       versioningTemplate: 'semver',
     },
   ],
+  kubernetes: {
+    enabled: false,
+  },
   packageRules: [
+    {
+      description: 'Helm charts',
+      matchDatasources: [
+        'helm',
+      ],
+      automerge: true,
+      automergeType: 'pr',
+      automergeStrategy: 'squash',
+      platformAutomerge: true,
+    },
     {
       description: 'Auto approve minor and patch updates for mise tools',
       matchFileNames: [
@@ -54,28 +84,6 @@
       extractVersion: '^kubernetes-(?<version>.*)$',
     },
     {
-      description: 'Kubernetes and service versions in .k8s-env.yaml',
-      matchManagers: [
-        'kubernetes',
-      ],
-      matchFileNames: [
-        '.k8s-env.yaml',
-      ],
-      matchPackageNames: [
-        'rancher/k3s',
-        'bitnami/mysql',
-        'bitnami/postgresql',
-        'bitnami/mongodb',
-        'bitnami/rabbitmq',
-        'oci://ghcr.io/dragonflydb/dragonfly/helm/dragonfly',
-      ],
-      enabled: true,
-      matchUpdateTypes: [
-        'minor',
-        'patch',
-      ],
-    },
-    {
       description: 'Python version in mise.toml',
       matchManagers: [
         'custom.regex',
@@ -86,7 +94,7 @@
       versioning: 'loose',
     },
     {
-      description: 'Python dependencies versioning in requirements.txt',
+      description: 'Python dependencies',
       matchManagers: [
         'pip_requirements',
       ],
@@ -99,33 +107,39 @@
       enabled: true,
       rangeStrategy: 'pin',
       versioning: 'pep440',
-    },
-    {
-      description: 'Python dependencies update types in requirements.txt',
-      matchManagers: [
-        'pip_requirements',
-      ],
-      matchFileNames: [
-        'requirements.txt',
-      ],
-      matchDatasources: [
-        'pypi',
-      ],
-      enabled: true,
-      matchUpdateTypes: [
-        'minor',
-        'patch',
-        'pin',
-        'digest',
-      ],
-      matchPackageNames: [
-        '/.*/',
-      ],
       automerge: true,
       automergeType: 'pr',
       automergeStrategy: 'squash',
       platformAutomerge: true,
       ignoreTests: true,
+    },
+    {
+      matchDatasources: [
+        'helm',
+      ],
+      registryUrls: [
+        'https://charts.bitnami.com/bitnami',
+      ],
+      matchPackageNames: [
+        'mysql',
+        'postgresql',
+        'mongodb',
+        'rabbitmq'
+      ],
+      versioning: 'helm',
+      extractVersion: '^(?<version>\\d+\\.\\d+\\.\\d+)$',
+    },
+    {
+      versioning: 'docker',
+      registryUrls: [
+        'ghcr.io',
+      ],
+      matchDatasources: [
+        'docker',
+      ],
+      matchPackageNames: [
+        '/^dragonflydb\\/dragonfly$/',
+      ],
     },
   ],
   versioning: 'semver',

@@ -43,7 +43,8 @@ environment:
         size: 10Gi # size of PVC
       config:
         chart: bitnami/mysql # the chart to use
-        version: 12.2.2 # the chart version to use
+        # renovate: datasource=helm depName=mysql
+        version: 12.1.0
         values: # additional values to use for the chart
           auth:
             createDatabase: false # whether or not to create a database
@@ -56,7 +57,8 @@ environment:
         size: 5Gi
       config:
         chart: bitnami/postgresql # the chart to use
-        version: 16.4.5 # the chart version to use
+        # renovate: datasource=helm depName=postgresql
+        version: 16.4.0
 
     - name: mongodb
       enabled: false # whether or not to install this component and expose the port(s)
@@ -66,7 +68,8 @@ environment:
         size: 5Gi # size of PVC
       config:
         chart: bitnami/mongodb # the chart to use
-        version: 16.4.2 # the chart version to use
+        # renovate: datasource=helm depName=mongodb
+        version: 16.4.0
   
     - name: rabbitmq
       enabled: false # whether or not to install this component and expose the port(s)
@@ -76,18 +79,19 @@ environment:
         size: 1Gi # size of PVC
       config:
         chart: bitnami/rabbitmq # the chart to use
-        version: 15.2.4 # the chart version to use
+        # renovate: datasource=helm depName=rabbitmq
+        version: 15.1.0
 
     - name: dragonfly
       enabled: false # whether or not to install this component and expose the port(s)
-      password-protected: false # flag indicating if the service is password protected
       ports: 
         - 6379 
       storage:
         size: 1Gi
       config:
         chart: oci://ghcr.io/dragonflydb/dragonfly/helm/dragonfly # the chart to use
-        version: v1.26.1 # the chart version to use
+        # renovate: datasource=docker depName=dragonflydb/dragonfly
+        version: v1.26.1
         values: # additional values to use for the chart
           image:
             repository: ghcr.io/dragonflydb/dragonfly # the image to use
