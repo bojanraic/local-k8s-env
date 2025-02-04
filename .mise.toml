@@ -13,7 +13,7 @@ uv = "0.5.27"
 # renovate: datasource=github-releases depName=helm/helm
 "aqua:helm/helm" = "3.16.0"
 # renovate: datasource=github-releases depName=helmfile/helmfile
-"aqua:helmfile/helmfile" = "0.170.0"
+"aqua:helmfile/helmfile" = "0.170.1"
 # renovate: datasource=github-releases depName=jqlang/jq
 "aqua:jqlang/jq" = "1.7.0"
 # renovate: datasource=github-releases depName=kubernetes-sigs/kustomize
