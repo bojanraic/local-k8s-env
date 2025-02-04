@@ -11,7 +11,7 @@ uv = "0.5.27"
 # renovate: datasource=github-releases depName=go-task/task
 "aqua:go-task/task" = "3.41.0"
 # renovate: datasource=github-releases depName=helm/helm
-"aqua:helm/helm" = "3.16.0"
+"aqua:helm/helm" = "3.17.0"
 # renovate: datasource=github-releases depName=helmfile/helmfile
 "aqua:helmfile/helmfile" = "0.170.1"
 # renovate: datasource=github-releases depName=jqlang/jq
