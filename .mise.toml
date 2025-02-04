@@ -9,7 +9,7 @@ uv = "0.5.27"
 
 # Operations tools
 # renovate: datasource=github-releases depName=go-task/task
-"aqua:go-task/task" = "3.40.0"
+"aqua:go-task/task" = "3.41.0"
 # renovate: datasource=github-releases depName=helm/helm
 "aqua:helm/helm" = "3.16.0"
 # renovate: datasource=github-releases depName=helmfile/helmfile
