@@ -23,7 +23,7 @@ uv = "0.5.27"
 # renovate: datasource=github-releases depName=mikefarah/yq
 "aqua:mikefarah/yq" = "v4.45.1"
 # renovate: datasource=github-releases depName=yannh/kubeconform
-"aqua:yannh/kubeconform" = "0.6.6"
+"aqua:yannh/kubeconform" = "0.6.7"
 # renovate: datasource=github-releases depName=k3d-io/k3d
 "aqua:k3d-io/k3d" = "5.8.1"
 # renovate: datasource=github-releases depName=FiloSottile/mkcert
