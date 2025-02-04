@@ -97,7 +97,7 @@
         'pypi',
       ],
       enabled: true,
-      rangeStrategy: 'replace',
+      rangeStrategy: 'pin',
       versioning: 'pep440',
     },
     {
@@ -130,7 +130,7 @@
   ],
   versioning: 'semver',
   schedule: [
-    'after 6am and before 1pm every weekday',
+    'after 8am and before 6pm every weekday',
   ],
   timezone: 'Europe/Berlin',
 }
