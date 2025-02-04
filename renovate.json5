@@ -9,38 +9,49 @@
         '\\.mise\\.toml$',
       ],
       matchStrings: [
-        '#\\s*renovate:\\s*datasource=(?<datasource>[^\\s]+)\\s+depName=(?<depName>[^\\s]+)[^\\n]*\\n"aqua:[^"]+"\\s*=\\s*"(?<currentValue>[^"]+)"'
+        '#\\s*renovate:\\s*datasource=(?<datasource>[^\\s]+)\\s+depName=(?<depName>[^\\s]+)[^\\n]*\\n"aqua:[^"]+"\\s*=\\s*"(?<currentValue>[^"]+)"',
       ],
       datasourceTemplate: '{{datasource}}',
       packageNameTemplate: '{{depName}}',
       depNameTemplate: '{{depName}}',
-      versioningTemplate: 'semver'
+      versioningTemplate: 'semver',
     },
   ],
   packageRules: [
     {
-      description: "Auto approve minor and patch updates for mise tools",
-      matchFileNames: [".mise.toml"],
-      matchUpdateTypes: ["minor", "patch"],
+      description: 'Auto approve minor and patch updates for mise tools',
+      matchFileNames: [
+        '.mise.toml',
+      ],
+      matchUpdateTypes: [
+        'minor',
+        'patch',
+      ],
       automerge: true,
-      automergeType: "pr",
-      automergeStrategy: "squash",
+      automergeType: 'pr',
+      automergeStrategy: 'squash',
       platformAutomerge: true,
-      requiredStatusChecks: null
+      ignoreTests: true,
     },
     {
-      matchPackageNames: ["kubernetes-sigs/kustomize"],
-      extractVersion: "^(?:kustomize/)?v(?<version>.*)$",
-      versioning: "semver"
+      matchPackageNames: [
+        'kubernetes-sigs/kustomize',
+      ],
+      extractVersion: '^(?:kustomize/)?v(?<version>.*)$',
+      versioning: 'semver',
     },
     {
-      matchPackageNames: ["jqlang/jq"],
-      extractVersion: "^jq-(?<version>.*)$",
-      versioning: "semver"
+      matchPackageNames: [
+        'jqlang/jq',
+      ],
+      extractVersion: '^jq-(?<version>.*)$',
+      versioning: 'semver',
     },
     {
-      matchPackageNames: ["kubernetes/kubectl"],
-      extractVersion: "^kubernetes-(?<version>.*)$"
+      matchPackageNames: [
+        'kubernetes/kubectl',
+      ],
+      extractVersion: '^kubernetes-(?<version>.*)$',
     },
     {
       description: 'Kubernetes and service versions in .k8s-env.yaml',
@@ -66,24 +77,40 @@
     },
     {
       description: 'Python version in mise.toml',
-      matchManagers: ['regex'],
-      matchPackageNames: ['python/cpython'],
+      matchManagers: [
+        'custom.regex',
+      ],
+      matchPackageNames: [
+        'python/cpython',
+      ],
       versioning: 'loose',
     },
     {
       description: 'Python dependencies versioning in requirements.txt',
-      matchManagers: ['pip_requirements'],
-      matchFileNames: ['requirements.txt'],
-      matchDatasources: ['pypi'],
+      matchManagers: [
+        'pip_requirements',
+      ],
+      matchFileNames: [
+        'requirements.txt',
+      ],
+      matchDatasources: [
+        'pypi',
+      ],
       enabled: true,
       rangeStrategy: 'replace',
       versioning: 'pep440',
     },
     {
       description: 'Python dependencies update types in requirements.txt',
-      matchManagers: ['pip_requirements'],
-      matchFileNames: ['requirements.txt'],
-      matchDatasources: ['pypi'],
+      matchManagers: [
+        'pip_requirements',
+      ],
+      matchFileNames: [
+        'requirements.txt',
+      ],
+      matchDatasources: [
+        'pypi',
+      ],
       enabled: true,
       matchUpdateTypes: [
         'minor',
@@ -91,17 +118,19 @@
         'pin',
         'digest',
       ],
-      matchPackageNames: ['/.*/',],
+      matchPackageNames: [
+        '/.*/',
+      ],
       automerge: true,
-      automergeType: "pr",
-      automergeStrategy: "squash",
+      automergeType: 'pr',
+      automergeStrategy: 'squash',
       platformAutomerge: true,
-      requiredStatusChecks: null
+      ignoreTests: true,
     },
   ],
   versioning: 'semver',
   schedule: [
     'after 6am and before 1pm every weekday',
   ],
-  timezone: "Europe/Berlin",
+  timezone: 'Europe/Berlin',
 }
