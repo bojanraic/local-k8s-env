@@ -1,8 +1,8 @@
 # Template rendering
-Jinja2>=2.7.1
+Jinja2==3.1.5
 
 # YAML processing
-PyYAML>=5.3.1
+PyYAML==6.0.2
 
 # Type hints
-typing-extensions>=4.7.1
+typing-extensions==4.12.2
