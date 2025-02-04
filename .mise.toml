@@ -9,25 +9,25 @@ uv = "0.5.27"
 
 # Operations tools
 # renovate: datasource=github-releases depName=go-task/task
-"aqua:go-task/task" = "3.41.0"
+"aqua:go-task/task" = "3.40.0"
 # renovate: datasource=github-releases depName=helm/helm
-"aqua:helm/helm" = "3.17.0"
+"aqua:helm/helm" = "3.16.0"
 # renovate: datasource=github-releases depName=helmfile/helmfile
-"aqua:helmfile/helmfile" = "0.170.1"
+"aqua:helmfile/helmfile" = "0.170.0"
 # renovate: datasource=github-releases depName=jqlang/jq
 "aqua:jqlang/jq" = "1.7.0"
 # renovate: datasource=github-releases depName=kubernetes-sigs/kustomize
-"aqua:kubernetes-sigs/kustomize" = "5.1.0"
+"aqua:kubernetes-sigs/kustomize" = "5.4.3"
 # renovate: datasource=github-tags depName=kubernetes/kubectl
-"aqua:kubernetes/kubectl" = "1.32.1"
+"aqua:kubernetes/kubectl" = "1.31.0"
 # renovate: datasource=github-releases depName=mikefarah/yq
-"aqua:mikefarah/yq" = "4.45.1"
+"aqua:mikefarah/yq" = "4.45.0"
 # renovate: datasource=github-releases depName=yannh/kubeconform
-"aqua:yannh/kubeconform" = "0.6.7"
+"aqua:yannh/kubeconform" = "0.6.6"
 # renovate: datasource=github-releases depName=k3d-io/k3d
-"aqua:k3d-io/k3d" = "5.8.1"
+"aqua:k3d-io/k3d" = "5.8.0"
 # renovate: datasource=github-releases depName=FiloSottile/mkcert
-"aqua:FiloSottile/mkcert" = "1.4.4"
+"aqua:FiloSottile/mkcert" = "1.4.3"
 
 [tasks.deps]
 description = "Install Python dependencies"
