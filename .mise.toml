@@ -5,7 +5,7 @@ PATH = { value = "{{env.VIRTUAL_ENV}}/bin:{{env.PATH}}" }
 [tools]
 # Python and package management
 python = "3.13"
-uv = "0.5.26"
+uv = "0.5.27"
 
 # Operations tools
 # renovate: datasource=github-releases depName=go-task/task
