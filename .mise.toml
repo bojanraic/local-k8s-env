@@ -27,7 +27,7 @@ uv = "0.5.27"
 # renovate: datasource=github-releases depName=k3d-io/k3d
 "aqua:k3d-io/k3d" = "5.8.0"
 # renovate: datasource=github-releases depName=FiloSottile/mkcert
-"aqua:FiloSottile/mkcert" = "1.4.3"
+"aqua:FiloSottile/mkcert" = "1.4.4"
 
 [tasks.deps]
 description = "Install Python dependencies"
