@@ -7,7 +7,6 @@
     ':disableRateLimiting',
     ':dependencyDashboard',
     ':semanticCommits',
-    ':separatePatchReleases',
     ':skipStatusChecks',
     ':timezone(Europe/Berlin)',
     'github>bojanraic/local-k8s-env//.github/renovate/customManagers.json5',
@@ -23,9 +22,9 @@
   ],
   versioning: 'semver',
   schedule: [
-    'after 3am and before 9pm',
+    'after 3am and before 1pm',
   ],
   automergeSchedule: [
-    'after 3am and before 9pm',
+    'after 3am and before 1pm',
   ]
 }
