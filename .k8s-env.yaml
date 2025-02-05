@@ -12,7 +12,8 @@ environment:
 
   kubernetes: 
     api-port: 6443 # port for the API server, will be exposed to the host machine as local-ip:api-port
-    image: rancher/k3s:v1.32.0-k3s1 # the container image to use for running kubernetes; must be compatible with the provider
+    # renovate: datasource=github-releases depName=k3s-io/k3s
+    image: rancher/k3s:v1.32.1-k3s1 # the container image to use for running kubernetes; must be compatible with the provider
 
   nodes: # common settings for all kubernetes nodes
     servers: 1 # number of control-plane servers/masters
@@ -29,9 +30,15 @@ environment:
     storage: # use PVC for storage
       size: 15Gi # size of PVC  
 
-  app-template-version: "3.6.1" # version for the app template used in the helmfile
-  dnsmasq-version: "2.90" # version for dnsmasq container image tag
-  nginx-ingress-version: "4.12.0" # version for nginx-ingress Helm chart
+  internal-components:
+    # renovate: datasource=helm depName=app-template repoUrl=https://bjw-s.github.io/helm-charts/ versioning=helm
+    - app-template: "3.5.1"
+    # renovate: datasource=helm depName=ingress-nginx repoUrl=https://kubernetes.github.io/ingress-nginx versioning=helm
+    - nginx-ingress: "4.11.0"
+    # renovate: datasource=docker depName=registry versioning=docker
+    - registry: "2.8.2"
+    # renovate: datasource=docker depName=dockurr/dnsmasq versioning=docker
+    - dnsmasq: "2.89"
 
   use-service-presets: true # whether or not to use the preset values for services; leave true unless you have a good reason to override the defaults
   services: # additional services to deploy within the cluster 
@@ -44,7 +51,7 @@ environment:
       config:
         chart: bitnami/mysql # the chart to use
         # renovate: datasource=helm depName=mysql
-        version: 12.1.0
+        version: 12.2.2
         values: # additional values to use for the chart
           auth:
             createDatabase: false # whether or not to create a database
@@ -58,7 +65,7 @@ environment:
       config:
         chart: bitnami/postgresql # the chart to use
         # renovate: datasource=helm depName=postgresql
-        version: 16.4.0
+        version: 16.4.6
 
     - name: mongodb
       enabled: false # whether or not to install this component and expose the port(s)
@@ -69,7 +76,7 @@ environment:
       config:
         chart: bitnami/mongodb # the chart to use
         # renovate: datasource=helm depName=mongodb
-        version: 16.4.0
+        version: 16.4.3
   
     - name: rabbitmq
       enabled: false # whether or not to install this component and expose the port(s)
@@ -80,10 +87,11 @@ environment:
       config:
         chart: bitnami/rabbitmq # the chart to use
         # renovate: datasource=helm depName=rabbitmq
-        version: 15.1.0
+        version: 15.2.5
 
     - name: dragonfly
       enabled: false # whether or not to install this component and expose the port(s)
+      password-protected: false # flag indicating if the service is password protected
       ports: 
         - 6379 
       storage:
@@ -91,7 +99,7 @@ environment:
       config:
         chart: oci://ghcr.io/dragonflydb/dragonfly/helm/dragonfly # the chart to use
         # renovate: datasource=docker depName=dragonflydb/dragonfly
-        version: v1.26.1
+        version: v1.26.2
         values: # additional values to use for the chart
           image:
             repository: ghcr.io/dragonflydb/dragonfly # the image to use

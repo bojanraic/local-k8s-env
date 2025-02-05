@@ -1,0 +1,39 @@
+{
+  "customManagers": [
+    {
+      "customType": "regex",
+      "fileMatch": [
+        "\\.k8s-env\\.yaml$"
+      ],
+      "matchStrings": [
+        "\\s*chart:\\s*(?:.*?/)?(?<package>[^/\\s]+)\\s*#.*\\n\\s*#\\s*renovate:\\s*datasource=(?<datasource>[^\\s]+)\\s+depName=(?<depName>[^\\s]+)[^\\n]*\\n\\s*version:\\s*(?<currentValue>\\S+).*"
+      ],
+      "datasourceTemplate": "{{datasource}}",
+      "packageNameTemplate": "{{depName}}"
+    },
+    {
+      "customType": "regex",
+      "fileMatch": [
+        "\\.mise\\.toml$"
+      ],
+      "matchStrings": [
+        "#\\s*renovate:\\s*datasource=(?<datasource>[^\\s]+)\\s+depName=(?<depName>[^\\s]+)[^\\n]*\\n\"aqua:[^\"]+\"\\s*=\\s*\"(?<currentValue>[^\"]+)\""
+      ],
+      "datasourceTemplate": "{{datasource}}",
+      "packageNameTemplate": "{{depName}}",
+      "depNameTemplate": "{{depName}}",
+      "versioningTemplate": "semver"
+    },
+    {
+      "customType": "regex",
+      "fileMatch": [
+        "\\.k8s-env\\.yaml$"
+      ],
+      "matchStrings": [
+        "(?sm)# renovate:\\s*datasource=(?<datasource>\\S+)\\s+depName=(?<depName>\\S+)(?:\\s+repoUrl=\\S+)?(?:\\s+versioning=\\S+)?\\s*\\n\\s*-\\s*(?<key>[^:]+):\\s*\\\"(?<currentValue>[^\\\"]+)\\\""
+      ],
+      "datasourceTemplate": "{{datasource}}",
+      "packageNameTemplate": "{{depName}}"
+    }
+  ]
+} 

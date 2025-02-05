@@ -82,24 +82,33 @@ def prepare_context(config):
         service['namespace'] = service_namespace
         enabled_services.append(service)
     
+    def get_internal_component(env, key):
+        for comp in env.get('internal-components', []):
+            if key in comp:
+                return comp[key]
+        return None
+
+    env = config['environment']
     context = {
-        'env_name': config['environment']['name'],
-        'local_ip': config['environment']['local-ip'],
-        'local_domain': config['environment']['local-domain'],
-        'kubernetes': config['environment']['kubernetes'],
-        'nodes': config['environment']['nodes'],
-        'runtime': config['environment']['provider']['runtime'],
+        'env_name': env['name'],
+        'local_ip': env['local-ip'],
+        'local_domain': env['local-domain'],
+        'kubernetes': env['kubernetes'],
+        'nodes': env['nodes'],
+        'runtime': env['provider']['runtime'],
         'services': enabled_services,
-        'registry': config['environment']['registry'],
-        'registry_name': config['environment']['registry']['name'],
-        'app_template_version': config['environment']['app-template-version'],
-        'nginx_ingress_version': config['environment']['nginx-ingress-version'],
-        'local_lb_ports': config['environment']['local-lb-ports'],
+        'registry': env['registry'],
+        'registry_name': env['registry']['name'],
+        'registry_version': get_internal_component(env, 'registry'),
+        'app_template_version': get_internal_component(env, 'app-template'),
+        'nginx_ingress_version': get_internal_component(env, 'nginx-ingress'),
+        'dnsmasq_version': get_internal_component(env, 'dnsmasq'),
+        'local_lb_ports': env['local-lb-ports'],
         'service_ports': service_ports,
         'service_values_presets': service_values_presets,
         'use_service_presets': use_service_presets,
         'cacert_file': CACERT_FILE,
-        'k8s_dir': f"{config['environment']['base-dir']}/{config['environment']['name']}",
+        'k8s_dir': f"{env['base-dir']}/{env['name']}",
         'mounts': [
             {'local_path': 'logs', 'node_path': '/var/log/'},
             {'local_path': 'storage', 'node_path': '/var/lib/rancher/k3s/storage'}
@@ -110,7 +119,7 @@ def prepare_context(config):
     context['root_ca_path'] = f"{context['k8s_dir']}/certs/rootCA.pem"
     
     # Add DNS-specific context with default value if not present
-    context['dns_port'] = config['environment'].get('dns', {}).get('port', 53)
+    context['dns_port'] = env.get('dns', {}).get('port', 53)
     
     return context
 

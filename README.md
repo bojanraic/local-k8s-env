@@ -22,9 +22,9 @@ A robust and flexible local Kubernetes development environment setup using k3d, 
 
 The following are required:
 
-- macOS
-- Docker (or docker-compatible runtime, e.g. OrbStack)
-- [mise](https://mise.jdx.dev/) for tool version management
+-  macOS
+- 🐳 Docker (or docker-compatible runtime, e.g. OrbStack)
+- 🧰 [mise](https://mise.jdx.dev/) for tool version management
 
 NOTES: 
 - Podman is not supported yet due to container runtime bugs
@@ -32,17 +32,17 @@ NOTES:
 - Linux support is planned to be added in the future (there are some intricacies around DNS resolution and systemd configuration that need to be ironed out)
 
 All other dependencies are automatically managed by mise:
-- Python 3.13
-- kubectl
-- k3d
-- Helm
-- Helmfile
-- mkcert
-- go-task
-- yq
-- jq
-- kustomize
-- kubeconform
+- 🐍 Python
+- 📦 kubectl
+- 📦 k3d
+- 📦 Helm
+- 📦 Helmfile
+- 📦 mkcert
+- 📦 go-task
+- 📦 yq
+- 📦 jq
+- 📦 kustomize
+- 📦 kubeconform
 
 ## Quick Start
 
@@ -58,6 +58,7 @@ cd <repository-name>
 curl https://mise.run | sh
 
 # Install tools and dependencies
+mise trust
 mise install
 task deps
 ```

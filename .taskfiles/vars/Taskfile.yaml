@@ -24,10 +24,10 @@ vars:
   PROVIDER: "k3d"
   PROVIDER_BINARY: "k3d"
   RUNTIME: "docker"
-  DNSMASQ_VERSION:
-    sh: yq e '.environment.dnsmasq-version' {{.CONFIG_FILE}}
   APP_TEMPLATE_VERSION:
-    sh: yq e '.environment.app-template-version' {{.CONFIG_FILE}}
+    sh: yq e '.environment.internal-components[] | select(has("app-template")) | .["app-template"]' {{.CONFIG_FILE}}
+  DNSMASQ_VERSION:
+    sh: yq e '.environment.internal-components[] | select(has("dnsmasq")) | .dnsmasq' {{.CONFIG_FILE}}
   RUNTIME_BINARY:
     sh: |
       if [ "{{.RUNTIME}}" = "podman" ]; then
@@ -67,6 +67,8 @@ vars:
   ENABLED_SERVICES:
     sh: |
       yq e '.environment.services[] | select(.enabled == true) | .name + ":" + (.ports[] | tostring)' {{.CONFIG_FILE}} | paste -sd " " -
+  NGINX_INGRESS_VERSION:
+    sh: yq e '.environment.internal-components[] | select(has("nginx-ingress")) | .["nginx-ingress"]' {{.CONFIG_FILE}}
 
 tasks:
   default: echo "The vars taskfile contains only variable definitions"

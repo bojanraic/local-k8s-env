@@ -1,0 +1,21 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": [
+    "config:recommended",
+    "github>bojanraic/local-k8s-env//.github/renovate/customManagers.json5",
+    "github>bojanraic/local-k8s-env//.github/renovate/packageRules.json5",
+    "github>bojanraic/local-k8s-env//.github/renovate/autoMerge.json5",
+    "github>bojanraic/local-k8s-env//.github/renovate/semanticCommits.json5"
+  ],
+  "hostRules": [
+    {
+      "matchHost": "ghcr.io",
+      "hostType": "docker"
+    }
+  ],
+  "versioning": "semver",
+  "schedule": [
+    "after 3am and before 9am every day"
+  ],
+  "timezone": "Europe/Berlin"
+} 
