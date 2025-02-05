@@ -15,7 +15,7 @@
   ],
   versioning: 'semver',
   schedule: [
-    'after 3am and before 9pm every day',
+    'after 3am and before 9pm',
   ],
   timezone: 'Europe/Berlin',
 }
