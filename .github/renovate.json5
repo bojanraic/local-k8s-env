@@ -2,6 +2,13 @@
   $schema: 'https://docs.renovatebot.com/renovate-schema.json',
   extends: [
     'config:recommended',
+    'docker:enableMajor',
+    ':automergeBranch',
+    ':disableRateLimiting',
+    ':dependencyDashboard',
+    ':semanticCommits',
+    ':skipStatusChecks',
+    ':timezone(Europe/Berlin)',
     'github>bojanraic/local-k8s-env//.github/renovate/customManagers.json5',
     'github>bojanraic/local-k8s-env//.github/renovate/packageRules.json5',
     'github>bojanraic/local-k8s-env//.github/renovate/autoMerge.json5',
@@ -15,7 +22,9 @@
   ],
   versioning: 'semver',
   schedule: [
-    'after 3am and before 9pm',
+    'after 3am and before 1pm',
   ],
-  timezone: 'Europe/Berlin',
+  automergeSchedule: [
+    'after 3am and before 1pm',
+  ]
 }
