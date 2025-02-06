@@ -29,13 +29,13 @@
     '* */6 * * *',
   ],
   enabledManagers: [
-    "regex",
-    "dockerfile",
-    "docker-compose",
-    "github-actions",
-    "pip_requirements",
-    "helm-values",
-    "helmfile",
-    "kubernetes"
-  ]
+    'custom.regex',
+    'dockerfile',
+    'docker-compose',
+    'github-actions',
+    'pip_requirements',
+    'helm-values',
+    'helmfile',
+    'kubernetes',
+  ],
 }
