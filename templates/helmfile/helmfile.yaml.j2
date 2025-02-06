@@ -20,8 +20,44 @@ releases:
     version: {{ nginx_ingress_version }}
     values:
       - controller:
+          hostPort:
+            enabled: true
+          service:
+            type: NodePort
+            annotations: {}
+          nodeSelector:
+            ingress-ready: "true"
+          tolerations:
+            - key: node-role.kubernetes.io/master
+              operator: Equal
+              effect: NoSchedule
+            - key: node-role.kubernetes.io/control-plane
+              operator: Equal
+              effect: NoSchedule
+          publishService:
+            enabled: false
+          admissionWebhooks:
+            enabled: true
+            patch:
+              enabled: true
+          ingressClassResource:
+            default: true
           extraArgs:
+            publish-status-address: {{ local_ip }}
             default-ssl-certificate: kube-system/wildcard-tls
+            election-id: ingress-nginx-leader
+            controller-class: k8s.io/ingress-nginx
+            ingress-class: nginx
+          resources:
+            requests:
+              cpu: 100m
+              memory: 90Mi
+          containerPort:
+            http: 80
+            https: 443
+          config:
+            proxy-body-size: "0"
+            use-forwarded-headers: "true"
         tcp:
           {% for service in services if service.enabled %}
           {% for port in service.ports %}
@@ -88,28 +124,15 @@ releases:
     namespace: {{ service.namespace | default(service.name) }}
     chart: {{ service.config.chart }}
     version: {{ service.config.version }}
+    needs:
+      # ensure ingress-nginx and registry are installed before installing {{ service.name }}
+      - ingress-nginx/ingress-nginx
+      - registry/registry
     values:
-      {% set base_values = service_values_presets[service.name] %}
-      - architecture: {{ base_values.architecture | default('standalone') }}
-        fullNameOverride: {{ service.name }}
-        nameOverride: {{ service.name }}
-        {% if 'primary' in base_values %}
-        primary:
-          persistence:
-            enabled: true
-            size: {{ service.storage.size }}
-        {% endif %}
-        {% if 'persistence' in base_values %}
-        persistence:
-          enabled: true
-          size: {{ service.storage.size }}
-        {% endif %}
-        {% if 'storage' in base_values %}
-        storage:
-          enabled: true
-          requests: {{ service.storage.size }}
-        {% endif %}
-      {% if service.config.get('values') %}
-      - {{ service.config.values | to_yaml }}
+      - # Base configuration
+        {{ service.base_values | to_yaml | indent(8) }}
+      {% if service.custom_values %}
+      - # Custom configuration
+        {{ service.custom_values | to_yaml | indent(8) }}
       {% endif %}
   {% endfor %} 

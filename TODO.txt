@@ -1,0 +1,14 @@
+- [x] add a flag to control whether taskfile tasks are silent - attempted butlooks to be not doable with taskfile
+- [x] add a flag to allow scheduling workloads on control plane
+- [x] make task output more readable
+- [x] clean up kind conditional logic and remnants of k3d
+- [x] Update README.md to remove k3d specific folder hierarchies
+- [x] fix running dragonfly as statefulset
+- [x] handle kind image tag updates using renovate
+- [x] expand help taskfile to include more information
+- [x] test Podman - rootless podman could work potentially; needs more testing around ports configuration; skipping for now
+- [ ] test Linux + Docker
+- [ ] test WSL + Docker
+- [ ] refactor service presets, especially for storage, to be more flexible and easier to manage
+- [ ] record a demo asciinema screencast, convert to gif and add to README
+- [ ] add port offsets to allow creating and using multiple clusters

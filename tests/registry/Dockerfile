@@ -1,5 +1,6 @@
 # Use the smallest possible base image (BusyBox)
-FROM busybox
+# renovate: datasource=docker depName=busybox
+FROM busybox:1.37.0-uclibc
 
 # Create the directory for the web files
 RUN mkdir -p /www

@@ -48,6 +48,12 @@ fi
 
 # Verify DNS resolution
 echo "Verifying DNS resolution..."
+if [ "${RUNTIME_BINARY}" = "docker" ]; then
+    NETWORK_NAME="kind"
+else
+    NETWORK_NAME="podman"
+fi
+
 dig @${LOCAL_IP} -p ${DNS_PORT} test.${LOCAL_DOMAIN} | grep -q "${LOCAL_IP}" || {
     echo "DNS resolution verification failed"
     exit 1
