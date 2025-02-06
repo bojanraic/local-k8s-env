@@ -4,47 +4,73 @@ version: "3"
 tasks:
   default: task --list --taskfile "{{.ROOT_DIR}}/.taskfiles/kubernetes/Taskfile.yaml"
 
+  wait-for-ready:
+    desc: Wait for the cluster to be ready
+    silent: true
+    cmds:
+      - |
+        echo "⏳ Waiting for KinD cluster..."
+        
+        # Set context and verify connection
+        kubectl --kubeconfig {{.KUBECONFIG_PATH}} config use-context kind-{{.CLUSTER_NAME}}
+        
+        # Give the API server a moment to initialize
+        sleep 3
+        
+        # Wait for all nodes to be ready
+        kubectl --kubeconfig {{.KUBECONFIG_PATH}} wait --for=condition=Ready nodes --all
+        echo "✅ Cluster is ready"
+
   fetch-kubeconfig:
     desc: Fetch kubeconfig for the kubernetes cluster
-    cmds: 
-      - k3d kubeconfig get {{.CLUSTER_NAME}} > {{.KUBECONFIG_PATH}}
+    silent: true
+    cmds:
+      - kind get kubeconfig --name {{.CLUSTER_NAME}} > {{.KUBECONFIG_PATH}}
       - chmod 0600 {{.KUBECONFIG_PATH}}
     preconditions:
-      - msg: "K3D cluster {{.CLUSTER_NAME}} not found"
-        sh: k3d cluster list | grep -q {{.CLUSTER_NAME}}
+      - msg: "{{.PROVIDER}} cluster {{.CLUSTER_NAME}} not found"
+        sh: kind get clusters | grep -q {{.CLUSTER_NAME}}
     status:
       - test -f {{.KUBECONFIG_PATH}} && grep -q {{.CLUSTER_NAME}} {{.KUBECONFIG_PATH}}
 
-  customize-coredns:
-    desc: Apply custom CoreDNS configuration and restart CoreDNS deployment
-    cmds:
-      - kubectl --kubeconfig {{.KUBECONFIG_PATH}} apply -f {{.K8S_DIR}}/config/coredns-custom.yaml
-      - kubectl --kubeconfig {{.KUBECONFIG_PATH}} rollout restart deployment coredns -n kube-system
-    status:
-      - kubectl --kubeconfig {{.KUBECONFIG_PATH}} get deployment coredns -n kube-system
-      - kubectl --kubeconfig {{.KUBECONFIG_PATH}} get configmap coredns-custom -n kube-system
-
   create-wildcard-cert:
     desc: Create a wildcard certificate for the local domain and deploy it to the cluster
+    silent: true
     cmds:
-      - kubectl --kubeconfig {{.KUBECONFIG_PATH}} create secret tls wildcard-tls --cert={{.K8S_DIR}}/certs/{{.LOCAL_DOMAIN}}.pem --key={{.K8S_DIR}}/certs/{{.LOCAL_DOMAIN}}-key.pem -n kube-system
+      - echo "🔄 Creating wildcard TLS certificate..."
+      - |
+        kubectl --kubeconfig {{.KUBECONFIG_PATH}} create secret tls wildcard-tls \
+          --cert={{.K8S_DIR}}/certs/{{.LOCAL_DOMAIN}}.pem \
+          --key={{.K8S_DIR}}/certs/{{.LOCAL_DOMAIN}}-key.pem \
+          -n kube-system
+      - echo "✅ Wildcard TLS certificate created"
     status:
       - kubectl --kubeconfig {{.KUBECONFIG_PATH}} get secret wildcard-tls -n kube-system
 
   deploy-services:
     desc: Deploy core services using helmfile
+    silent: true
     cmds:
-      - helmfile --file {{.K8S_DIR}}/config/helmfile.yaml apply --kubeconfig {{.KUBECONFIG_PATH}} --skip-diff-on-install --suppress-diff
+      - echo "🔄 Deploying core services..."
+      - |
+        echo "  📦 Installing/upgrading Helm charts for enabled services..."
+        helmfile --file {{.K8S_DIR}}/config/helmfile.yaml apply --kubeconfig {{.KUBECONFIG_PATH}} --skip-diff-on-install --suppress-diff
+      - echo "✅ Core services deployed successfully"
     status:
       - helmfile --file {{.K8S_DIR}}/config/helmfile.yaml status --kubeconfig {{.KUBECONFIG_PATH}}
 
   label-worker-nodes:
     desc: "Label worker/agent nodes with node-role.kubernetes.io/worker=true"
+    silent: true
     cmds:
       - |
-        echo "🔄 Labeling worker/agent nodes..."
+        echo "🔄 Labeling worker nodes..."
         for ((i=0; i<{{.WORKERS}}; i++)); do
-          NODE_NAME="k3d-{{.CLUSTER_NAME}}-agent-${i}"
+          if [ $i -eq 0 ]; then
+            NODE_NAME="{{.CLUSTER_NAME}}-worker"
+          else
+            NODE_NAME="{{.CLUSTER_NAME}}-worker$((i+1))"
+          fi
           if ! kubectl --kubeconfig {{.KUBECONFIG_PATH}} get node ${NODE_NAME} -o jsonpath='{.metadata.labels}' | grep -q 'node-role\.kubernetes\.io/worker'; then
             kubectl --kubeconfig {{.KUBECONFIG_PATH}} label node ${NODE_NAME} node-role.kubernetes.io/worker=true --overwrite
             echo "✅ Labeled node ${NODE_NAME} as worker"
@@ -56,7 +82,11 @@ tasks:
       - |
         LABELED_COUNT=0
         for ((i=0; i<{{.WORKERS}}; i++)); do
-          NODE_NAME="k3d-{{.CLUSTER_NAME}}-agent-${i}"
+          if [ $i -eq 0 ]; then
+            NODE_NAME="{{.CLUSTER_NAME}}-worker"
+          else
+            NODE_NAME="{{.CLUSTER_NAME}}-worker$((i+1))"
+          fi
           if kubectl --kubeconfig {{.KUBECONFIG_PATH}} get node ${NODE_NAME} -o jsonpath='{.metadata.labels}' | grep -q 'node-role\.kubernetes\.io/worker'; then
             ((LABELED_COUNT++))
           fi
@@ -67,6 +97,7 @@ tasks:
     desc: Fetch secrets for enabled services
     silent: true
     cmds:
+      - echo "🔄 Fetching service secrets..."
       - |
         if [ "{{.USE_SERVICE_PRESETS}}" = "true" ]; then
           # Get list of enabled services first
@@ -89,9 +120,60 @@ tasks:
 
           if [ -s "$OUTPUT_FILE" ]; then
             echo "🔑 Passwords for enabled password-protected services have been written to $OUTPUT_FILE"
+            echo "🔑 Service secrets:"
+            cat $OUTPUT_FILE
           fi
         else
           echo "ℹ️  Service presets are disabled (use-service-presets: false)"
           echo "👉 You are responsible for managing service secrets."
           echo "   Refer to each service's helm chart documentation for configuration"
         fi
+      - echo "✅ Service secrets fetched successfully"
+
+  create-cluster:
+    desc: Create a new KinD cluster
+    silent: true
+    status:
+      - test -f {{.K8S_DIR}}/config/cluster.yaml
+      - kind get clusters | grep -q {{.CLUSTER_NAME}}
+    cmds:
+      - echo "🔄 Creating KinD cluster '{{.CLUSTER_NAME}}'..."
+      - kind create cluster --config {{.K8S_DIR}}/config/cluster.yaml --name {{.CLUSTER_NAME}}
+      - echo "✅ KinD cluster '{{.CLUSTER_NAME}}' created successfully"
+
+  delete-cluster:
+    desc: Delete the kubernetes cluster
+    silent: true
+    cmds:
+      - kind delete cluster --name {{.CLUSTER_NAME}}
+
+  recreate-cluster:
+    desc: Recreate the kubernetes cluster
+    silent: true
+    cmds:
+      - task: delete-cluster
+      - task: create-cluster
+
+  set-control-plane-scheduling:
+    desc: "Set scheduling on control plane nodes"
+    silent: true
+    cmds:
+      - |
+        if [ "{{.ALLOW_CP_SCHEDULING}}" = "true" ]; then
+          echo "🔄 Enabling scheduling on control plane nodes..."
+          # Remove taint if it exists, suppress errors
+          kubectl --kubeconfig {{.KUBECONFIG_PATH}} taint nodes --all node-role.kubernetes.io/control-plane:NoSchedule- 2>/dev/null || true
+          echo "✅ Scheduling enabled on control plane nodes"
+        else
+          echo "🔄 Disabling scheduling on control plane nodes..."
+          kubectl --kubeconfig {{.KUBECONFIG_PATH}} taint nodes --selector node-role.kubernetes.io/control-plane node-role.kubernetes.io/control-plane:NoSchedule
+          echo "✅ Scheduling disabled on control plane nodes"
+        fi
+
+  list-nodes:
+    desc: List cluster nodes
+    silent: true
+    cmds:
+      - echo "🔄 Listing cluster nodes..."
+      - kubectl --kubeconfig {{.KUBECONFIG_PATH}} get nodes
+      - echo "✅ Node list complete"

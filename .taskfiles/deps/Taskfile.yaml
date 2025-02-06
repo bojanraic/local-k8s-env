@@ -6,11 +6,15 @@ tasks:
     desc: Check and install required dependencies
     silent: true
     cmds:
+      - echo "🔄 Checking dependencies..."
       - mise install
       - mise run deps
+      - echo "✅ Dependencies check complete"
 
   deps:
     desc: Install Python dependencies
     silent: true
     cmds:
-      - mise run deps 
+      - echo "🔄 Installing Python dependencies..."
+      - mise run deps
+      - echo "✅ Python dependencies installed" 

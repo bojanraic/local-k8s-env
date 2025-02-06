@@ -4,55 +4,73 @@ version: "3"
 tasks:
   default: task --list --taskfile "{{.ROOT_DIR}}/.taskfiles/validate/Taskfile.yaml"
 
-  build-push-local-registry: 
-    desc: "Builds and pushes a sample image to the local registry"
+  build-push-local-registry:
+    desc: Builds and pushes a sample image to the local registry
     silent: true
+    status:
+      - |
+        # Check if image with current tag already exists in registry
+        {{.RUNTIME_BINARY}} manifest inspect {{.REGISTRY_HOST}}/{{.REGISTRY_NAME}}-test:{{.IMAGE_TAG}} >/dev/null 2>&1
     cmds:
-      - "echo 🏗️ Building and pushing a sample image to local registry"
-      - "{{.RUNTIME_BINARY}} build {{.REG_TEST_DIR}} -t {{.REGISTRY_HOST}}/{{.REGISTRY_NAME}}-test:latest"
-      - "{{.RUNTIME_BINARY}} push {{.REGISTRY_HOST}}/{{.REGISTRY_NAME}}-test:latest"
+      - echo "🔄 Building and pushing a sample image to local registry..."
+      - "{{.RUNTIME_BINARY}} build {{.REG_TEST_DIR}} -t {{.REGISTRY_HOST}}/{{.REGISTRY_NAME}}-test:{{.IMAGE_TAG}}"
+      - "{{.RUNTIME_BINARY}} push {{.REGISTRY_HOST}}/{{.REGISTRY_NAME}}-test:{{.IMAGE_TAG}}"
+      - echo "✅ Sample image built and pushed successfully"
 
   deploy-test-helm-release:
     desc: Deploy a sample Helm release using an image from the local registry
     silent: true
-    vars:
-      VENV: .venv
     cmds:
+      - echo "🔄 Deploying a test Helm release..."
       - |
          source {{.VENV}}/bin/activate && python3 {{.ROOT_DIR}}/.scripts/generate_validation.py \
-          '{{.REGISTRY_HOST}}' '{{.REGISTRY_NAME}}-test' 'latest' '{{.REGISTRY_NAME}}-test.{{.LOCAL_DOMAIN}}' '{{.REG_TEST_DIR}}/test-values.yaml'
+          '{{.REGISTRY_HOST}}' '{{.REGISTRY_NAME}}-test' '{{.IMAGE_TAG}}' '{{.REGISTRY_NAME}}-test.{{.LOCAL_DOMAIN}}' '{{.REG_TEST_DIR}}/test-values.yaml'
       - |
         helm upgrade --install --wait {{.REGISTRY_NAME}}-test bjw-s/app-template \
           --version {{.APP_TEMPLATE_VERSION}} --namespace default \
           --values {{.REG_TEST_DIR}}/test-values.yaml
       - rm -f {{.REG_TEST_DIR}}/test-values.yaml
+      - echo "✅ Test Helm release deployed successfully"
     generates:
       - "{{.REG_TEST_DIR}}/test-values.yaml"
     status:
-      - helm list --deployed --namespace default | grep -q '{{.REGISTRY_NAME}}-test'
+      - |
+        # Check if release exists with current image tag
+        helm get values {{.REGISTRY_NAME}}-test -n default -o yaml 2>/dev/null | \
+          grep -q "tag: {{.IMAGE_TAG}}"
 
   local-registry:
     desc: "Validates local registry by building and pushing an image, then deploying a Helm release using that image"
+    vars:
+      IMAGE_TAG:
+        sh: |
+          # Create hash from both files
+          cat {{.REG_TEST_DIR}}/ep.sh {{.REG_TEST_DIR}}/Dockerfile | sha256sum | cut -c1-8
     cmds:
       - task: build-push-local-registry
+        vars: { IMAGE_TAG: '{{.IMAGE_TAG}}' }
       - task: deploy-test-helm-release
+        vars: { IMAGE_TAG: '{{.IMAGE_TAG}}' }
 
   app:
-    desc: "Validates sample app deployed via Helm release from local registry"
+    desc: Validates sample app deployed via Helm release from local registry
     silent: true
     vars:
       TEST_NAME: "{{.REGISTRY_NAME}}-test"
     cmds:
-      - sleep 10
-      - echo -e "\n\n🌐 Registry Test (https://{{.TEST_NAME}}.{{.LOCAL_DOMAIN}}/):\n"
-      - curl https://{{.TEST_NAME}}.{{.LOCAL_DOMAIN}}/
+      - echo "🔄 Validating sample application..."
+      - sleep 5
+      - echo -e "\n🌐 Registry Test (https://{{.TEST_NAME}}.{{.LOCAL_DOMAIN}}/):\n"
+      - curl -s https://{{.TEST_NAME}}.{{.LOCAL_DOMAIN}}/
+      - echo "✅ Sample application validation complete"
 
   tcp-services:
     desc: "Validate TCP services are reachable"
     silent: true
     cmds:
     - |
-      echo "🔍 Validating TCP services:"
+      echo "🔍 Validating enabled TCP services:"
+      FAILED=0
       ENABLED_SERVICES=($(yq e '.environment.services[] | select(.enabled == true) | .name' {{.CONFIG_FILE}}))
       for service in "${ENABLED_SERVICES[@]}"; do
         ports=($(yq e ".environment.services[] | select(.name == \"$service\") | .ports[]" {{.CONFIG_FILE}}))
@@ -62,6 +80,13 @@ tasks:
             echo "✅ $service is reachable on port $port"
           else
             echo "❌ $service is NOT reachable on port $port"
+            FAILED=1
           fi
         done
       done
+      
+      if [ $FAILED -eq 1 ]; then
+        echo "❌❌❌ Some services are not reachable"
+        exit 1
+      fi
+      echo "✅✅✅ All services are reachable"

@@ -8,6 +8,7 @@
     ':dependencyDashboard',
     ':semanticCommits',
     ':skipStatusChecks',
+    ':automergeDigest',
     ':timezone(Europe/Berlin)',
     'github>bojanraic/local-k8s-env//.github/renovate/customManagers.json5',
     'github>bojanraic/local-k8s-env//.github/renovate/packageRules.json5',
@@ -22,9 +23,19 @@
   ],
   versioning: 'semver',
   schedule: [
-    'after 3am and before 1pm',
+    '* */6 * * *',
   ],
   automergeSchedule: [
-    'after 3am and before 1pm',
+    '* */6 * * *',
+  ],
+  enabledManagers: [
+    'custom.regex',
+    'dockerfile',
+    'docker-compose',
+    'github-actions',
+    'pip_requirements',
+    'helm-values',
+    'helmfile',
+    'kubernetes',
   ]
 }

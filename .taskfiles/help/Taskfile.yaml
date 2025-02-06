@@ -4,8 +4,9 @@ version: "3"
 tasks:
   default: task --list --taskfile "{{.ROOT_DIR}}/.taskfiles/help/Taskfile.yaml"
 
-  cluster-info: 
-    desc: "Basic info about the kubernetes cluster"
+  cluster-info:
+    desc: "Show basic info about the kubernetes cluster"
+    silent: true
     cmds:
       - "echo 🏢 Cluster Name: {{.CLUSTER_NAME}}"
       - kubectl --kubeconfig {{.KUBECONFIG_PATH}} cluster-info
@@ -16,3 +17,95 @@ tasks:
       - sh: |
           test -f {{.KUBECONFIG_PATH}}
         msg: "❌ Kubeconfig file {{.KUBECONFIG_PATH}} for {{.CLUSTER_NAME}} does not exist."
+
+  environment:
+    desc: "Show environment configuration details"
+    silent: true
+    cmds:
+      - |
+        echo "🌍 Environment Configuration:"
+        echo "├── Name: {{.ENV_NAME}}"
+        echo "├── Base Directory: {{.BASE_DIR}}"
+        echo "├── Local Domain: {{.LOCAL_DOMAIN}}"
+        echo "├── Local IP: {{.LOCAL_IP}}"
+        echo "├── Container Runtime: {{.RUNTIME}}"
+        echo "├── Nodes:"
+        echo "│   ├── Control Plane: {{.SERVERS}}"
+        echo "│   ├── Workers: {{.WORKERS}}"
+        echo "│   └── Control Plane Scheduling: {{.ALLOW_CP_SCHEDULING}}"
+        echo "└── Service Presets Enabled: {{.USE_SERVICE_PRESETS}}"
+
+  services:
+    desc: "Show information about enabled services"
+    silent: true
+    cmds:
+      - |
+        echo "🔌 Enabled Services:"
+        yq e '.environment.services[] | select(.enabled == true) | "├── " + .name + ": " + (.ports | join(", "))' {{.CONFIG_FILE}}
+        echo "└── Registry: {{.REGISTRY_HOST}}"
+
+  dns:
+    desc: "Show DNS configuration"
+    silent: true
+    cmds:
+      - |
+        echo "🔍 DNS Configuration:"
+        echo "├── Container Name: {{.DNS_CONTAINER_NAME}}"
+        echo "├── Status: $( {{.RUNTIME_BINARY}} ps --filter name={{.DNS_CONTAINER_NAME}} --format '{{.Status}}' || echo 'Not running' )"
+        echo "└── Config File: {{.K8S_DIR}}/config/dnsmasq.conf"
+        
+        if [ -f "{{.K8S_DIR}}/config/dnsmasq.conf" ]; then
+          echo -e "\n📄 DNS Records:"
+          grep "address=/" {{.K8S_DIR}}/config/dnsmasq.conf | sed 's/address=\//├── /'
+        fi
+
+  storage:
+    desc: "Show storage information"
+    silent: true
+    cmds:
+      - |
+        echo "💾 Storage Information:"
+        echo "├── Base Path: {{.K8S_DIR}}/storage"
+        echo "├── Control Plane Storage:"
+        for i in $(seq 0 $(expr {{.SERVERS}} - 1)); do
+          SIZE=$(du -sh {{.K8S_DIR}}/storage/control-$i 2>/dev/null | cut -f1 || echo "N/A")
+          echo "│   ├── control-$i: $SIZE"
+        done
+        echo "└── Worker Storage:"
+        for i in $(seq 0 $(expr {{.WORKERS}} - 1)); do
+          SIZE=$(du -sh {{.K8S_DIR}}/storage/worker-$i 2>/dev/null | cut -f1 || echo "N/A")
+          echo "    ├── worker-$i: $SIZE"
+        done
+
+  certificates:
+    desc: "Show certificate information"
+    silent: true
+    cmds:
+      - |
+        echo "🔐 Certificate Information:"
+        echo "├── CA Path: {{.ROOT_CA_PATH}}"
+        echo "├── Certificates Directory: {{.K8S_DIR}}/certs"
+        if [ -f "{{.K8S_DIR}}/certs/{{.LOCAL_DOMAIN}}.pem" ]; then
+          echo "├── Domain Certificate:"
+          openssl x509 -in {{.K8S_DIR}}/certs/{{.LOCAL_DOMAIN}}.pem -noout -subject -issuer -dates | sed 's/^/│   ├── /'
+        fi
+        echo "└── Wildcard TLS Secret Status:"
+        kubectl --kubeconfig {{.KUBECONFIG_PATH}} get secret wildcard-tls -n kube-system -o json | \
+          jq -r '"\    ├── Name: " + .metadata.name, "\    ├── Namespace: " + .metadata.namespace, "\    └── Age: " + .metadata.creationTimestamp' 2>/dev/null || \
+          echo "    └── Not found"
+
+  all:
+    desc: "Show all environment information"
+    silent: true
+    cmds:
+      - task: environment
+      - echo ""
+      - task: cluster-info
+      - echo ""
+      - task: services
+      - echo ""
+      - task: dns
+      - echo ""
+      - task: storage
+      - echo ""
+      - task: certificates
