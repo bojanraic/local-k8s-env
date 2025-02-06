@@ -1,0 +1,87 @@
+# KinD configuration for {{ env_name }} environment
+kind: Cluster
+apiVersion: kind.x-k8s.io/v1alpha4
+name: {{ env_name }}
+
+# Cluster-wide configuration
+# Networking
+networking:
+  apiServerAddress: "127.0.0.1"  # Always use localhost for API server
+  apiServerPort: {{ api_port }}
+  # Pod subnet configuration
+  podSubnet: "10.244.0.0/16"
+  # Service subnet configuration
+  serviceSubnet: "10.96.0.0/12"
+  disableDefaultCNI: false      # Ensure KinD's default CNI is enabled
+
+# Containerd (for private container registry)
+containerdConfigPatches:
+- |-
+  [plugins."io.containerd.grpc.v1.cri".registry.mirrors."{{ registry_name }}.{{ local_domain }}"]
+    endpoint = ["https://{{ registry_name }}.{{ local_domain }}"]
+  [plugins."io.containerd.grpc.v1.cri".registry.configs."{{ registry_name }}.{{ local_domain }}".tls]
+    ca_file = "{{ cacert_file }}" 
+
+# Node-specific configuration
+nodes:
+# Control plane nodes
+{% for i in range(nodes.servers) %}
+- role: control-plane
+  image: {{ kubernetes_full_image }}
+  {% if loop.first %}
+  # Configure port mappings on the first control plane node
+  extraPortMappings:
+    {% for port in ingress_ports %}
+    - containerPort: {{ port }}
+      hostPort: {{ port }}
+      protocol: TCP
+    {% endfor %}
+    # Also expose service ports on control-plane when no workers
+    {% for service in services if service.enabled %}
+    {% for port in service.ports %}
+    - containerPort: {{ port }}
+      hostPort: {{ port }}
+      protocol: TCP
+    {% endfor %}
+    {% endfor %}
+  {% endif %}
+  # Configure mounts for logs, storage, and certificates
+  extraMounts:
+  {% for mount in mounts %}
+  - hostPath: {{ mount.hostPath }}/control-{{ i }}
+    containerPath: {{ mount.node_path }}
+  {% endfor %}
+  - hostPath: {{ root_ca_path }}
+    containerPath: {{ cacert_file }}
+  - hostPath: {{ k8s_dir }}/config/containerd
+    containerPath: /etc/containerd/certs.d/{{ registry_name }}.{{ local_domain }}
+  kubeadmConfigPatches:
+  - |
+    kind: InitConfiguration
+    nodeRegistration:
+      kubeletExtraArgs:
+        node-labels: "ingress-ready=true"
+        {% if nodes.workers == 0 or nodes.get('allow-scheduling-on-control-plane', False) %}
+        register-with-taints: ""  # Allow scheduling on control-plane when no workers or explicitly allowed
+        {% endif %}
+{% endfor %}
+
+# Worker nodes
+{% for i in range(nodes.workers) %}
+- role: worker
+  image: {{ kubernetes_full_image }}
+  # Simple worker node configuration
+  extraMounts:
+  {% for mount in mounts %}
+  - hostPath: {{ mount.hostPath }}/worker-{{ i }}
+    containerPath: {{ mount.node_path }}
+  {% endfor %}
+  - hostPath: {{ root_ca_path }}
+    containerPath: {{ cacert_file }}
+  - hostPath: {{ k8s_dir }}/config/containerd
+    containerPath: /etc/containerd/certs.d/{{ registry_name }}.{{ local_domain }}
+{% if not loop.last %}
+
+{% endif %}
+{% endfor %}
+

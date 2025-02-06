@@ -12,23 +12,29 @@ tasks:
   deps:
     desc: Install Python dependencies
     silent: true
-    vars:
-      VENV: .venv
     status:
       - test -f {{.VENV}}/pyvenv.cfg
     cmds:
+      - echo "🔄 Installing Python dependencies..."
       - python3 -m venv {{.VENV}}
-      - source {{.VENV}}/bin/activate && pip install -r requirements.txt
+      - |
+        source {{.VENV}}/bin/activate && pip install -r requirements.txt
+      - echo "✅ Python dependencies installed"
 
   check-deps:
     desc: Check and install required dependencies
     silent: true
     cmds:
+      - echo "🔄 Checking dependencies..."
+      - echo "  ⚙️ Installing mise tools..."
       - mise install
+      - echo "  ⚙️ Installing Python dependencies..."
       - task: deps
+      - echo "✅ All dependencies installed"
 
   init:
     desc: Initialize the local environment
+    silent: true
     deps: [check-deps]
     cmds:
       - task: generate-dirs
@@ -43,42 +49,53 @@ tasks:
     desc: Create necessary directories
     silent: true
     cmds:
+      - echo "🔄 Creating directories..."
       - |
         if [ {{.SERVERS}} -ge 1 ]; then
+          echo "  📁 Creating control plane directories..."
           for i in $(seq 0 $(expr {{.SERVERS}} - 1)); do
-            mkdir -p {{.K8S_DIR}}/logs/server-$i
-            mkdir -p {{.K8S_DIR}}/storage/server-$i
+            mkdir -p {{.K8S_DIR}}/logs/control-$i
+            mkdir -p {{.K8S_DIR}}/storage/control-$i
           done
         fi
         if [ {{.WORKERS}} -ge 1 ]; then
+          echo "  📁 Creating worker node directories..."
           for i in $(seq 0 $(expr {{.WORKERS}} - 1)); do
-            mkdir -p {{.K8S_DIR}}/logs/agent-$i
-            mkdir -p {{.K8S_DIR}}/storage/agent-$i
+            mkdir -p {{.K8S_DIR}}/logs/worker-$i
+            mkdir -p {{.K8S_DIR}}/storage/worker-$i
           done
         fi
       - mkdir -p {{.K8S_DIR}}/config
+      - echo "✅ Directories created"
 
   generate-configs:
     desc: Generate all configuration files
     silent: true
-    vars:
-      VENV: .venv
     cmds:
+      - echo "🔄 Generating configuration files..."
       - source {{.VENV}}/bin/activate && python3 ./.scripts/generate_configs.py '{{.CONFIG_FILE}}' '{{.OS}}'
+      - echo "✅ Configuration files generated"
     sources:
-      - .local-env.yaml
+      - .k8s-env.yaml
     generates:
       - '{{.K8S_DIR}}/config/cluster.yaml'
       - '{{.K8S_DIR}}/config/containerd.yaml'
       - '{{.K8S_DIR}}/config/dnsmasq.conf'
-      - '{{.K8S_DIR}}/config/coredns-custom.yaml'
       - '{{.K8S_DIR}}/config/helmfile.yaml'
 
   setup-certificates:
     desc: Setup mkcert certificates
     silent: true
     cmds:
-      - ./.scripts/setup-certificates.sh {{.LOCAL_DOMAIN}} {{.LOCAL_IP}} {{.K8S_DIR}}/certs
+      - echo "🔄 Setting up certificates..."
+      - |
+        echo "  🔐 Generating certificates using mkcert..."
+        ./.scripts/setup-certificates.sh {{.LOCAL_DOMAIN}} {{.LOCAL_IP}} {{.K8S_DIR}}/certs
+      - |
+        echo "  📁 Setting up containerd registry certificates..."
+        mkdir -p {{.K8S_DIR}}/config/containerd/certs.d/{{.REGISTRY_NAME}}.{{.LOCAL_DOMAIN}}/
+        cp {{.K8S_DIR}}/certs/rootCA.pem {{.K8S_DIR}}/config/containerd/certs.d/{{.REGISTRY_NAME}}.{{.LOCAL_DOMAIN}}/ca.crt
+      - echo "✅ Certificates setup complete"
     status:
       - test -f "{{.ROOT_CA_PATH}}/rootCA.pem"
       - test -f {{.K8S_DIR}}/certs/rootCA.pem
@@ -88,7 +105,9 @@ tasks:
     desc: Setup dnsmasq configuration
     silent: true
     cmds:
+      - echo "🔄 Setting up dnsmasq..."
       - ./.scripts/setup-dns.sh {{.CONFIG_FILE}} {{.LOCAL_DOMAIN}} {{.LOCAL_IP}} {{.K8S_DIR}}/config/dnsmasq.conf {{.DNSMASQ_VERSION}}
+      - echo "✅ Dnsmasq setup complete"
     status:
       - test -f {{.K8S_DIR}}/config/dnsmasq.conf
 
@@ -96,8 +115,10 @@ tasks:
     desc: Start dnsmasq container
     silent: true
     cmds:
+      - echo "🔄 Starting DNS service..."
       - |
         if [ -z "$({{.RUNTIME_BINARY}} ps -q -f name={{.DNS_CONTAINER_NAME}})" ]; then
+          echo "  🚀 Starting dnsmasq container..."
           {{.RUNTIME_BINARY}} run -d --name {{.DNS_CONTAINER_NAME}} \
             --network {{.CONTAINER_NETWORK_NAME}} \
             --restart unless-stopped \
@@ -106,71 +127,104 @@ tasks:
             -v "{{.K8S_DIR}}/config/dnsmasq.conf":"/etc/dnsmasq.conf" \
             dockurr/dnsmasq:{{.DNSMASQ_VERSION}}
         else
-          echo "🔄 DNS container {{.DNS_CONTAINER_NAME}} is already running."
+          echo "  ℹ️ DNS container already running"
         fi
-
-  create-cluster:
-    desc: Create local cluster
-    deps: [init]
-    cmds:
-      - K8S_DIR={{.K8S_DIR}} {{.PROVIDER_BINARY}} cluster create -c {{.K8S_DIR}}/config/cluster.yaml
+      - echo "✅ DNS service ready"
 
   create-env:
     desc: Creates the local environment
+    silent: true
     cmds:
       - task: init
-      - task: create-cluster
       - task: start-dnsmasq
+      - task: kubernetes:create-cluster
       - task: kubernetes:fetch-kubeconfig
-      - task: kubernetes:customize-coredns
+      - task: kubernetes:wait-for-ready
+      - task: kubernetes:set-control-plane-scheduling
       - task: kubernetes:label-worker-nodes
+      - task: kubernetes:list-nodes
       - task: kubernetes:create-wildcard-cert
       - task: kubernetes:deploy-services
       - task: kubernetes:fetch-service-secrets
-      - echo "🎉 Local environment started successfully."
-      - |
-        if [ -s "{{.K8S_DIR}}/service-secrets.txt" ]; then
-          echo "🔑 Service secrets:"
-          cat {{.K8S_DIR}}/service-secrets.txt
-        fi
 
   stop-env:
     desc: Stop the local environment
+    silent: true
     cmds:
-      - "{{.PROVIDER_BINARY}} cluster stop {{.CLUSTER_NAME}}"
-      - "{{.RUNTIME_BINARY}} stop {{.DNS_CONTAINER_NAME}} || true"
+      - echo "🔄 Stopping cluster '{{.CLUSTER_NAME}}'..."
+      - |
+        # Check if any containers are running
+        RUNNING_COUNT=$({{.RUNTIME_BINARY}} ps --filter "name={{.CLUSTER_NAME}}" --filter "status=running" -q | wc -l)
+        DNS_RUNNING=$({{.RUNTIME_BINARY}} ps --filter "name={{.DNS_CONTAINER_NAME}}" --filter "status=running" -q)
+        
+        if [ -z "$RUNNING_CONTAINERS" ] && [ -z "$DNS_RUNNING" ]; then
+          echo "ℹ️ Cluster '{{.CLUSTER_NAME}}' is already stopped"
+          exit 0
+        fi
+        
+        {{.RUNTIME_BINARY}} stop $({{.RUNTIME_BINARY}} ps -q -f name={{.CLUSTER_NAME}}) >/dev/null 2>&1 || true
+        {{.RUNTIME_BINARY}} stop {{.DNS_CONTAINER_NAME}} >/dev/null 2>&1 || true
+      - echo "✅ Stopped cluster '{{.CLUSTER_NAME}}'"
 
   start-env:
     desc: Start the local environment
+    silent: true
     cmds:
-      - "{{.PROVIDER_BINARY}} cluster start {{.CLUSTER_NAME}}"
-      - "{{.RUNTIME_BINARY}} start {{.DNS_CONTAINER_NAME}} || true"
+      - |
+        # Check if all containers are running
+        RUNNING_COUNT=$({{.RUNTIME_BINARY}} ps --filter "name={{.CLUSTER_NAME}}" --filter "status=running" -q | wc -l)
+        TOTAL_COUNT=$({{.RUNTIME_BINARY}} ps -a --filter "name={{.CLUSTER_NAME}}" -q | wc -l)
+        DNS_RUNNING=$({{.RUNTIME_BINARY}} ps --filter "name={{.DNS_CONTAINER_NAME}}" --filter "status=running" -q)
+        
+        if [ "$RUNNING_COUNT" -eq "$TOTAL_COUNT" ] && [ -n "$DNS_RUNNING" ]; then
+          echo "ℹ️ Cluster '{{.CLUSTER_NAME}}' is already running"
+          exit 0
+        fi
+        
+        {{.RUNTIME_BINARY}} start $({{.RUNTIME_BINARY}} ps -aq -f name={{.CLUSTER_NAME}}) >/dev/null 2>&1 || true
+        {{.RUNTIME_BINARY}} start {{.DNS_CONTAINER_NAME}} >/dev/null 2>&1 || true
+        sleep 2
+        
+        RUNNING_COUNT=$({{.RUNTIME_BINARY}} ps --filter "name={{.CLUSTER_NAME}}" --filter "status=running" -q | wc -l)
+        TOTAL_COUNT=$({{.RUNTIME_BINARY}} ps -a --filter "name={{.CLUSTER_NAME}}" -q | wc -l)
+        DNS_RUNNING=$({{.RUNTIME_BINARY}} ps --filter "name={{.DNS_CONTAINER_NAME}}" --filter "status=running" -q)
+        
+        if [ "$RUNNING_COUNT" -ne "$TOTAL_COUNT" ] || [ -z "$DNS_RUNNING" ]; then
+          exit 1
+        fi
+        echo "✅ Started cluster '{{.CLUSTER_NAME}}'"
 
   destroy-env:
     desc: Destroy the local environment
+    silent: true
     cmds:
+      - echo "🔄 Destroying local environment..."
+      - task: stop-env
+      - "{{.RUNTIME_BINARY}} rm -f {{.DNS_CONTAINER_NAME}} || true"
+      - kind delete cluster --name {{.CLUSTER_NAME}}
       - |
-        if [[ "{{.OS}}" == "Darwin" ]]; then
+        if [[ "$(echo {{.OS}} | tr '[:upper:]' '[:lower:]')" == "darwin" ]]; then
           sudo rm -f /etc/resolver/{{.LOCAL_DOMAIN}}
           rm -rf {{.K8S_DIR}}
-        elif [[ "{{.OS}}" == "Linux" ]]; then
+        elif [[ "$(echo {{.OS}} | tr '[:upper:]' '[:lower:]')" == "linux" ]]; then
           sudo rm -f /etc/systemd/resolved.conf.d/{{.LOCAL_DOMAIN}}.conf
           sudo systemctl restart systemd-resolved
           sudo rm -rf {{.K8S_DIR}}
         else
           echo "Unsupported OS: {{.OS}}"
         fi
-      - "{{.RUNTIME_BINARY}} rm -f {{.DNS_CONTAINER_NAME}} || true"
-      - "{{.PROVIDER_BINARY}} cluster delete {{.CLUSTER_NAME}}"
+      - echo "✅ Local environment destroyed"
 
   recreate-env:
     desc: Recreate the local environment
+    silent: true
     cmds:
       - task: destroy-env
       - task: create-env
 
   validate-env:
     desc: Validate the local environment
+    silent: true
     cmds:
       - task: validate:tcp-services
       - task: validate:local-registry
@@ -178,8 +232,22 @@ tasks:
 
   create-validate-env:
     desc: Create a clean local environment and validate it
+    silent: true
     cmds:
       - task: recreate-env
       - task: validate-env
+
+  clean-env:
+    desc: Clean up the local environment
+    silent: true
+    cmds:
+      - task: destroy-env
+      - rm -rf {{.VENV}}
+
+  separator:
+    internal: true
+    silent: true
+    cmds:
+      - echo ""
 
   default: task --list

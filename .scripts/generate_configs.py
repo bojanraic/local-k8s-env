@@ -60,21 +60,45 @@ def prepare_context(config):
         service_namespace = service.get('namespace', service_name)
         
         # Always apply auth presets as they contain critical security settings
-        if service_name in service_auth_presets:
+        if use_service_presets and service_name in service_auth_presets:
             service.update(service_auth_presets[service_name])
         
-        # Initialize config if not present
-        if 'config' not in service:
-            service['config'] = {}
-            
-        # Handle service values based on use-service-presets flag
-        if use_service_presets and service_name in service_values_presets:
             base_values = service_values_presets[service_name]
+            # Handle service values based on use-service-presets flag
+            if use_service_presets and service_name in service_values_presets:
+                base_values = service_values_presets[service_name]
+                # Prepare base values
+                base_values.update({
+                    'fullNameOverride': service_name,
+                    'nameOverride': service_name
+                })
+                # Add architecture if present
+                if 'architecture' in service_values_presets[service_name]:
+                    base_values['architecture'] = service_values_presets[service_name]['architecture']
+                # Add persistence configuration
+                if 'primary' in service_values_presets[service_name]:
+                    base_values['primary'] = {
+                        'persistence': {
+                            'enabled': True,
+                            'size': service['storage']['size']
+                        }
+                    }
+                elif 'persistence' in service_values_presets[service_name]:
+                    base_values['persistence'] = {
+                        'enabled': True,
+                        'size': service['storage']['size']
+                    }
+                elif 'storage' in service_values_presets[service_name]:
+                    # Handle dragonfly-style storage configuration
+                    base_values['storage'] = {
+                        'enabled': service_values_presets[service_name]['storage'].get('enabled', False),
+                        'requests': service['storage']['size']
+                    }
+                # Add useStatefulSet if present
+                if 'useStatefulSet' in service_values_presets[service_name]:
+                    base_values['useStatefulSet'] = True
             # Store base values separately - they'll be used in the template
             service['base_values'] = base_values
-            
-            # If service has custom values, they'll be applied as an additional values block
-            # in the template, which will override the base values
         else:
             # When presets are disabled, ensure we have an empty dict for values
             service['config']['values'] = service.get('config', {}).get('values', {})
@@ -89,37 +113,70 @@ def prepare_context(config):
         return None
 
     env = config['environment']
+    provider_name = env['provider']['name']
+    
+    # Set provider-specific paths and settings
+    storage_path = '/var/local-path-provisioner'
+    log_path = '/var/log'
+    internal_domain = 'kind.internal'
+    internal_host = 'localhost.kind.internal'
+    # Expand base directory variables for KinD
+    base_dir = env['base-dir']
+    if env['expand-base-dir-vars']:
+        pwd = os.getcwd()
+        base_dir = base_dir.replace('${PWD}', pwd)
+    
     context = {
         'env_name': env['name'],
         'local_ip': env['local-ip'],
         'local_domain': env['local-domain'],
         'kubernetes': env['kubernetes'],
+        'api_port': env['kubernetes']['api-port'],
         'nodes': env['nodes'],
         'runtime': env['provider']['runtime'],
-        'services': enabled_services,
+        # Separate ingress and service ports for better control
+        'ingress_ports': env['local-lb-ports'],  # 80/443 for ingress
+        'services': [s for s in enabled_services if s.get('enabled', False)],  # Only enabled services
         'registry': env['registry'],
         'registry_name': env['registry']['name'],
         'registry_version': get_internal_component(env, 'registry'),
         'app_template_version': get_internal_component(env, 'app-template'),
         'nginx_ingress_version': get_internal_component(env, 'nginx-ingress'),
         'dnsmasq_version': get_internal_component(env, 'dnsmasq'),
-        'local_lb_ports': env['local-lb-ports'],
         'service_ports': service_ports,
         'service_values_presets': service_values_presets,
         'use_service_presets': use_service_presets,
         'cacert_file': CACERT_FILE,
-        'k8s_dir': f"{env['base-dir']}/{env['name']}",
+        'k8s_dir': f"{base_dir}/{env['name']}",
         'mounts': [
-            {'local_path': 'logs', 'node_path': '/var/log/'},
-            {'local_path': 'storage', 'node_path': '/var/lib/rancher/k3s/storage'}
-        ]
+            {'local_path': 'logs', 'node_path': log_path},
+            {'local_path': 'storage', 'node_path': storage_path}
+        ],
+        'internal_domain': internal_domain,
+        'internal_host': internal_host,
+        'provider': env['provider'],
+        'allow_cp_scheduling': env['nodes'].get('allow-scheduling-on-control-plane', False),
     }
     
-    # Add root CA path
-    context['root_ca_path'] = f"{context['k8s_dir']}/certs/rootCA.pem"
+    # Ensure all paths in mounts are absolute for KinD
+    for mount in context['mounts']:
+        if 'local_path' in mount:
+            mount['hostPath'] = os.path.abspath(f"{context['k8s_dir']}/{mount['local_path']}")
+    
+    # Add root CA path, absolute for KinD
+    context['root_ca_path'] = os.path.abspath(f"{context['k8s_dir']}/certs/rootCA.pem")
     
     # Add DNS-specific context with default value if not present
     context['dns_port'] = env.get('dns', {}).get('port', 53)
+    
+    # Combine Kubernetes image and tag into a full image reference
+    kubernetes_image = env.get('kubernetes', {}).get('image', '')
+    kubernetes_tag = env.get('kubernetes', {}).get('tag', '')
+    if kubernetes_tag:
+        full_image = f"{kubernetes_image}:{kubernetes_tag}"
+    else:
+        full_image = kubernetes_image
+    context['kubernetes_full_image'] = full_image
     
     return context
 
@@ -181,15 +238,15 @@ def generate_resolver_file(config, os_name):
     
     print(f"🔧 Setting up DNS resolver for {local_domain}...")
     
-    if os_name == 'Darwin':
+    if os_name.lower() == 'darwin':
         generate_resolver_file_mac(config, local_domain, local_ip)
-    elif os_name == 'Linux':
+    elif os_name.lower() == 'linux':
         generate_resolver_file_linux(config, local_domain, local_ip)
     else:
         print(f"⚠️  Resolver file generation not implemented for {os_name}")
 
 def generate_configs(config_file, os_name):
-    print(f"🚀 Generating configurations from {config_file}")
+    print("📝 Generating configurations from", config_file)
     config = load_config(config_file)
     context = prepare_context(config)
     
@@ -202,14 +259,19 @@ def generate_configs(config_file, os_name):
     config_dir = f"{base_dir}/{env_name}/config"
     os.makedirs(config_dir, exist_ok=True)
     
-    # Define templates and their output files
-    templates = {
-        'k3d/cluster.yaml.j2': 'cluster.yaml',
+    provider_name = config['environment']['provider']['name']
+    
+    # Define templates based on provider
+    base_templates = {
         'helmfile/helmfile.yaml.j2': 'helmfile.yaml',
-        'coredns/custom.yaml.j2': 'coredns-custom.yaml',
         'containerd/config.yaml.j2': 'containerd.yaml',
         'dnsmasq/config.conf.j2': 'dnsmasq.conf'
     }
+    
+    # Add provider-specific cluster template
+    base_templates['kind/cluster.yaml.j2'] = 'cluster.yaml'
+    
+    templates = base_templates
     
     # Generate each configuration file
     for template_path, output_name in templates.items():

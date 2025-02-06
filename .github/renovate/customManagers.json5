@@ -3,6 +3,17 @@
     {
       "customType": "regex",
       "fileMatch": [
+        "\\.mise\\.toml$"
+      ],
+      "matchStrings": [
+        "(?sm)# renovate:\\s*datasource=(?<datasource>\\S+)\\s+depName=(?<depName>\\S+).*?\\n(?<key>\\S+)\\s*=\\s*\"(?<currentValue>[^\"]+)\""
+      ],
+      "datasourceTemplate": "{{datasource}}",
+      "packageNameTemplate": "{{depName}}"
+    },
+    {
+      "customType": "regex",
+      "fileMatch": [
         "\\.k8s-env\\.yaml$"
       ],
       "matchStrings": [
@@ -14,15 +25,13 @@
     {
       "customType": "regex",
       "fileMatch": [
-        "\\.mise\\.toml$"
+        "\\.k8s-env\\.yaml$"
       ],
       "matchStrings": [
-        "#\\s*renovate:\\s*datasource=(?<datasource>[^\\s]+)\\s+depName=(?<depName>[^\\s]+)[^\\n]*\\n\"aqua:[^\"]+\"\\s*=\\s*\"(?<currentValue>[^\"]+)\""
+        "# renovate:\\s*datasource=docker\\s+depName=(?<depName>[^\\s]+)\\s+versioning=docker\\s*\\n\\s*tag:\\s*(?<currentValue>\\S+)"
       ],
-      "datasourceTemplate": "{{datasource}}",
-      "packageNameTemplate": "{{depName}}",
-      "depNameTemplate": "{{depName}}",
-      "versioningTemplate": "semver"
+      "datasourceTemplate": "docker",
+      "packageNameTemplate": "{{depName}}"
     },
     {
       "customType": "regex",
