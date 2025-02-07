@@ -1,6 +1,6 @@
 [env]
 VIRTUAL_ENV = { value = "{{config_root}}/.venv" }
-PATH = { value = "{{env.VIRTUAL_ENV}}/bin:{{env.PATH}}" }
+_.path = ["{{env.VIRTUAL_ENV}}/bin"]
 
 [tools]
 # Python and package management
