@@ -36,7 +36,7 @@ environment:
 
   internal-components:
     # renovate: datasource=helm depName=app-template repoUrl=https://bjw-s.github.io/helm-charts/ versioning=helm
-    - app-template: "3.6.1"
+    - app-template: "3.7.0"
     # renovate: datasource=helm depName=ingress-nginx repoUrl=https://kubernetes.github.io/ingress-nginx versioning=helm
     - nginx-ingress: "4.12.0"
     # renovate: datasource=docker depName=registry versioning=docker
