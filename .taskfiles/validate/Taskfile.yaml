@@ -23,7 +23,7 @@ tasks:
     cmds:
       - echo "🔄 Deploying a test Helm release..."
       - |
-         source {{.VENV}}/bin/activate && python3 {{.ROOT_DIR}}/.scripts/generate_validation.py \
+         {{.VENV}}/bin/python3 {{.ROOT_DIR}}/.scripts/generate_validation.py \
           '{{.REGISTRY_HOST}}' '{{.REGISTRY_NAME}}-test' '{{.IMAGE_TAG}}' '{{.REGISTRY_NAME}}-test.{{.LOCAL_DOMAIN}}' '{{.REG_TEST_DIR}}/test-values.yaml'
       - |
         helm upgrade --install --wait {{.REGISTRY_NAME}}-test bjw-s/app-template \

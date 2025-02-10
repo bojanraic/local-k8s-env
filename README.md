@@ -403,12 +403,24 @@ cd <repository-name>
 # Install mise (if not already installed)
 curl https://mise.run | sh
 
-# Install tools and dependencies
+# Activate mise 
+```bash
+echo "eval \"\$(/home/boki/.local/bin/mise activate bash)\"" >> ~/.bashrc
+```
+or similar for your shell
+
+3. Re-open your terminal and verify the mise environment:
+```bash 
+mise trust
+mise doctor
+```
+4. Install tools, create Python virtual environment and install dependencies
+```bash
 mise install
-task deps
+mise run deps
 ```
 
-3. Configure your environment by editing `.k8s-env.yaml`:
+5. Configure your environment by editing `.k8s-env.yaml`:
 ```yaml
 environment:
   name: my-local-env
@@ -416,12 +428,12 @@ environment:
   local-domain: me.local # Change if desired
 ```
 
-4. Create the environment:
+6. Create the environment:
 ```bash
 task create-env
 ```
 
-5. Verify the setup:
+7. Verify the setup:
 ```bash
 task validate-env
 ```
