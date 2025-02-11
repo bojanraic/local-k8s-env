@@ -9,10 +9,10 @@ networking:
   apiServerAddress: "127.0.0.1"  # Always use localhost for API server
   apiServerPort: {{ api_port }}
   # Pod subnet configuration
-  podSubnet: "10.244.0.0/16"
+  podSubnet: "10.10.0.0/16"
   # Service subnet configuration
-  serviceSubnet: "10.96.0.0/12"
-  disableDefaultCNI: false      # Ensure KinD's default CNI is enabled
+  serviceSubnet: "10.11.0.0/16"
+  disableDefaultCNI: false
 
 # Containerd (for private container registry)
 containerdConfigPatches:

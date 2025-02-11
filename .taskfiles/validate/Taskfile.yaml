@@ -4,40 +4,92 @@ version: "3"
 tasks:
   default: task --list --taskfile "{{.ROOT_DIR}}/.taskfiles/validate/Taskfile.yaml"
 
-  build-push-local-registry:
+  build-push-image:
     desc: Builds and pushes a sample image to the local registry
     silent: true
-    status:
-      - |
-        # Check if image with current tag already exists in registry
-        {{.RUNTIME_BINARY}} manifest inspect {{.REGISTRY_HOST}}/{{.REGISTRY_NAME}}-test:{{.IMAGE_TAG}} >/dev/null 2>&1
+    vars:
+      IMAGE_EXISTS:
+        sh: |
+          if {{.RUNTIME_BINARY}} manifest inspect {{.REGISTRY_HOST}}/{{.REGISTRY_NAME}}-test:{{.IMAGE_TAG}} >/dev/null 2>&1; then
+            echo "true"
+          else
+            echo "false"
+          fi
     cmds:
-      - echo "🔄 Building and pushing a sample image to local registry..."
-      - "{{.RUNTIME_BINARY}} build {{.REG_TEST_DIR}} -t {{.REGISTRY_HOST}}/{{.REGISTRY_NAME}}-test:{{.IMAGE_TAG}}"
-      - "{{.RUNTIME_BINARY}} push {{.REGISTRY_HOST}}/{{.REGISTRY_NAME}}-test:{{.IMAGE_TAG}}"
-      - echo "✅ Sample image built and pushed successfully"
+      - |
+        if [ "{{.IMAGE_EXISTS}}" = "true" ]; then
+          echo "ℹ️ Image {{.REGISTRY_HOST}}/{{.REGISTRY_NAME}}-test:{{.IMAGE_TAG}} already exists in registry"
+        else
+          echo "🔄 Building and pushing a sample image to local registry..."
+          {{.RUNTIME_BINARY}} build {{.REG_TEST_DIR}} -t {{.REGISTRY_HOST}}/{{.REGISTRY_NAME}}-test:{{.IMAGE_TAG}} >/dev/null
+          {{.RUNTIME_BINARY}} push {{.REGISTRY_HOST}}/{{.REGISTRY_NAME}}-test:{{.IMAGE_TAG}} >/dev/null
+          echo "✅ Sample image built and pushed successfully"
+        fi
 
-  deploy-test-helm-release:
+  deploy-test-app:
     desc: Deploy a sample Helm release using an image from the local registry
     silent: true
     cmds:
-      - echo "🔄 Deploying a test Helm release..."
       - |
-         {{.VENV}}/bin/python3 {{.ROOT_DIR}}/.scripts/generate_validation.py \
-          '{{.REGISTRY_HOST}}' '{{.REGISTRY_NAME}}-test' '{{.IMAGE_TAG}}' '{{.REGISTRY_NAME}}-test.{{.LOCAL_DOMAIN}}' '{{.REG_TEST_DIR}}/test-values.yaml'
+        if helm get values {{.REGISTRY_NAME}}-test -n default -o yaml 2>/dev/null | grep -q "tag: {{.IMAGE_TAG}}"; then
+          echo "ℹ️ Helm release {{.REGISTRY_NAME}}-test with image tag {{.IMAGE_TAG}} already deployed"
+        else
+          echo "🔄 Deploying a test app Helm release based on image tag {{.IMAGE_TAG}}..."
+          helm upgrade --install --wait {{.REGISTRY_NAME}}-test bjw-s/app-template \
+            --version {{.APP_TEMPLATE_VERSION}} --namespace default \
+            --values <(cat << EOF
+        controllers:
+          main:
+            type: deployment
+            strategy: RollingUpdate
+            containers:
+              main:
+                image:
+                  repository: {{.REGISTRY_HOST}}/{{.REGISTRY_NAME}}-test
+                  tag: {{.IMAGE_TAG}}
+                env:
+                  - name: IMAGE_TAG
+                    value: {{.IMAGE_TAG}}
+        service:
+          main:
+            controller: main
+            ports:
+              http:
+                port: 80
+        ingress:
+          main:
+            enabled: true
+            className: nginx
+            hosts:
+              - host: {{.REGISTRY_NAME}}-test.{{.LOCAL_DOMAIN}}
+                paths:
+                  - path: /
+                    pathType: Prefix
+                    service:
+                      identifier: main
+                      port: http
+            tls:
+              - hosts:
+                  - {{.REGISTRY_NAME}}-test.{{.LOCAL_DOMAIN}}
+        EOF
+        )
+          echo "✅ Test app Helm release based on image tag {{.IMAGE_TAG}} deployed successfully"
+        fi
+
+  undeploy-test-app:
+    desc: Undeploy the test app Helm release
+    silent: true
+    cmds:
+      - echo "🔄 Undeploying sample app helm release..."
       - |
-        helm upgrade --install --wait {{.REGISTRY_NAME}}-test bjw-s/app-template \
-          --version {{.APP_TEMPLATE_VERSION}} --namespace default \
-          --values {{.REG_TEST_DIR}}/test-values.yaml
-      - rm -f {{.REG_TEST_DIR}}/test-values.yaml
-      - echo "✅ Test Helm release deployed successfully"
-    generates:
-      - "{{.REG_TEST_DIR}}/test-values.yaml"
-    status:
-      - |
-        # Check if release exists with current image tag
-        helm get values {{.REGISTRY_NAME}}-test -n default -o yaml 2>/dev/null | \
-          grep -q "tag: {{.IMAGE_TAG}}"
+        if helm status {{.REGISTRY_NAME}}-test -n default >/dev/null 2>&1; then
+          echo "  ⏳ Uninstalling helm release '{{.REGISTRY_NAME}}-test'..."
+          helm uninstall {{.REGISTRY_NAME}}-test -n default
+          echo "  ✅ Helm release '{{.REGISTRY_NAME}}-test' uninstalled"
+        else
+          echo "ℹ️ Helm release '{{.REGISTRY_NAME}}-test' is not installed"
+        fi
+      - echo "✅ Sample app helm release undeployed"
 
   local-registry:
     desc: "Validates local registry by building and pushing an image, then deploying a Helm release using that image"
@@ -47,9 +99,9 @@ tasks:
           # Create hash from both files
           cat {{.REG_TEST_DIR}}/ep.sh {{.REG_TEST_DIR}}/Dockerfile | sha256sum | cut -c1-8
     cmds:
-      - task: build-push-local-registry
+      - task: build-push-image
         vars: { IMAGE_TAG: '{{.IMAGE_TAG}}' }
-      - task: deploy-test-helm-release
+      - task: deploy-test-app
         vars: { IMAGE_TAG: '{{.IMAGE_TAG}}' }
 
   app:
@@ -65,28 +117,28 @@ tasks:
       - echo "✅ Sample application validation complete"
 
   tcp-services:
-    desc: "Validate TCP services are reachable"
+    desc: "Validate TCP services are reachable from local machine"
     silent: true
     cmds:
-    - |
-      echo "🔍 Validating enabled TCP services:"
-      FAILED=0
-      ENABLED_SERVICES=($(yq e '.environment.services[] | select(.enabled == true) | .name' {{.CONFIG_FILE}}))
-      for service in "${ENABLED_SERVICES[@]}"; do
-        ports=($(yq e ".environment.services[] | select(.name == \"$service\") | .ports[]" {{.CONFIG_FILE}}))
-        for port in "${ports[@]}"; do
-          echo "🔄 Validating $service on port $port..."
-          if nc -zv $service.{{.LOCAL_DOMAIN}} $port; then
-            echo "✅ $service is reachable on port $port"
-          else
-            echo "❌ $service is NOT reachable on port $port"
-            FAILED=1
-          fi
+      - |
+        echo "🔍 Validating enabled TCP services from local machine:"
+        FAILED=0
+        ENABLED_SERVICES=($(yq e '.environment.services[] | select(.enabled == true) | .name' {{.CONFIG_FILE}}))
+        for service in "${ENABLED_SERVICES[@]}"; do
+          ports=($(yq e ".environment.services[] | select(.name == \"$service\") | .ports[]" {{.CONFIG_FILE}}))
+          for port in "${ports[@]}"; do
+            echo "  🔄 Validating $service on port $port..."
+            if nc -zv $service.{{.LOCAL_DOMAIN}} $port; then
+              echo "  ✅ $service is reachable on port $port"
+            else
+              echo "  ❌ $service is NOT reachable on port $port"
+              FAILED=1
+            fi
+          done
         done
-      done
-      
-      if [ $FAILED -eq 1 ]; then
-        echo "❌❌❌ Some services are not reachable"
-        exit 1
-      fi
-      echo "✅✅✅ All services are reachable"
+        
+        if [ $FAILED -eq 1 ]; then
+          echo "❌ Some services are not reachable from local machine"
+          exit 1
+        fi
+        echo "✅ All services are reachable from local machine"

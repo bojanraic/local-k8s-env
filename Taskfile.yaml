@@ -62,10 +62,10 @@ tasks:
     silent: true
     cmds:
       - echo "🔄 Generating configuration files..."
-      - "{{.VENV}}/bin/python3 ./.scripts/generate_configs.py '{{.CONFIG_FILE}}' '{{.OS}}'"
+      - "{{.VENV}}/bin/python3 ./generate_configs.py '{{.CONFIG_FILE}}' '{{.OS}}'"
       - echo "✅ Configuration files generated"
     sources:
-      - .k8s-env.yaml
+      - k8s-env.yaml
     generates:
       - '{{.K8S_DIR}}/config/cluster.yaml'
       - '{{.K8S_DIR}}/config/containerd.yaml'
@@ -77,28 +77,44 @@ tasks:
     silent: true
     cmds:
       - echo "🔄 Setting up certificates..."
+      - mkdir -p {{.CERT_DIR}}
+      - mkcert -install
       - |
-        echo "  🔐 Generating certificates using mkcert..."
-        ./.scripts/setup-certificates.sh {{.LOCAL_DOMAIN}} {{.LOCAL_IP}} {{.K8S_DIR}}/certs
+        if [ ! -f {{.CERT_FILE}} ]; then
+          echo "  🔐 Generating certificates using mkcert..."
+          mkcert -cert-file {{.CERT_FILE}} -key-file {{.KEY_FILE}} "*.{{.LOCAL_DOMAIN}}" "{{.LOCAL_DOMAIN}}"
+        fi
+      - cp "$(mkcert -CAROOT)/rootCA.pem" {{.CERT_DIR}}/rootCA.pem
+      - cat {{.CERT_FILE}} {{.KEY_FILE}} > {{.COMBINED_FILE}}
       - |
         echo "  📁 Setting up containerd registry certificates..."
-        mkdir -p {{.K8S_DIR}}/config/containerd/certs.d/{{.REGISTRY_NAME}}.{{.LOCAL_DOMAIN}}/
-        cp {{.K8S_DIR}}/certs/rootCA.pem {{.K8S_DIR}}/config/containerd/certs.d/{{.REGISTRY_NAME}}.{{.LOCAL_DOMAIN}}/ca.crt
+        mkdir -p {{.CONTAINERD_CERT_DIR}}
+        cp {{.CERT_DIR}}/rootCA.pem {{.CONTAINERD_CERT_DIR}}/ca.crt
       - echo "✅ Certificates setup complete"
     status:
       - test -f "{{.ROOT_CA_PATH}}/rootCA.pem"
-      - test -f {{.K8S_DIR}}/certs/rootCA.pem
-      - test -f {{.K8S_DIR}}/certs/{{.LOCAL_DOMAIN}}.pem
+      - test -f {{.CERT_DIR}}/rootCA.pem
+      - test -f {{.CERT_FILE}}
+      - test -f {{.KEY_FILE}}
+      - test -f {{.COMBINED_FILE}}
+      - test -f {{.CONTAINERD_CERT_DIR}}/ca.crt
 
   setup-dnsmasq:
     desc: Setup dnsmasq configuration
     silent: true
     cmds:
       - echo "🔄 Setting up dnsmasq..."
-      - ./.scripts/setup-dns.sh {{.CONFIG_FILE}} {{.LOCAL_DOMAIN}} {{.LOCAL_IP}} {{.K8S_DIR}}/config/dnsmasq.conf {{.DNSMASQ_VERSION}}
+      # Create resolver configuration
+      - sudo mkdir -p {{.RESOLVER_DIR}}
+      - |
+        echo "nameserver {{.LOCAL_IP}}" | sudo tee {{.RESOLVER_FILE}} > /dev/null
+        echo "port {{.DNS_PORT}}" | sudo tee -a {{.RESOLVER_FILE}} > /dev/null
+      - sudo chown root:wheel {{.RESOLVER_FILE}}
+      - sudo chmod 644 {{.RESOLVER_FILE}}
       - echo "✅ Dnsmasq setup complete"
     status:
       - test -f {{.K8S_DIR}}/config/dnsmasq.conf
+      - test -f {{.RESOLVER_FILE}}
 
   start-dnsmasq:
     desc: Start dnsmasq container
@@ -113,12 +129,62 @@ tasks:
             --restart unless-stopped \
             -p 53:53/udp \
             -p 53:53/tcp \
-            -v "{{.K8S_DIR}}/config/dnsmasq.conf":"/etc/dnsmasq.conf" \
+            -v "{{.K8S_DIR}}/config/dnsmasq.conf":"/etc/dnsmasq.conf:ro" \
             dockurr/dnsmasq:{{.DNSMASQ_VERSION}}
         else
-          echo "  ℹ️ DNS container already running"
+          echo "  ℹ️ Reloading DNS configuration..."
+          {{.RUNTIME_BINARY}} cp {{.K8S_DIR}}/config/dnsmasq.conf {{.DNS_CONTAINER_NAME}}:/etc/dnsmasq.conf
+          {{.RUNTIME_BINARY}} restart {{.DNS_CONTAINER_NAME}}
         fi
-      - echo "✅ DNS service ready"
+      - |
+        echo "  🔍 Verifying DNS resolution..."
+        if ! dig @{{.LOCAL_IP}} -p {{.DNS_PORT}} test.{{.LOCAL_DOMAIN}} | grep -q "{{.LOCAL_IP}}"; then
+          echo "❌ DNS resolution verification failed"
+          exit 1
+        else
+          dig @{{.LOCAL_IP}} -p {{.DNS_PORT}} test.{{.LOCAL_DOMAIN}} | grep "{{.LOCAL_IP}}"
+          echo "✅ DNS service ready"
+        fi
+    status:
+      - |
+        # Check if container exists and is running with current config
+        CONTAINER_ID=$({{.RUNTIME_BINARY}} ps -q -f name={{.DNS_CONTAINER_NAME}} -f status=running) && \
+        test -n "$CONTAINER_ID" && \
+        {{.RUNTIME_BINARY}} diff {{.DNS_CONTAINER_NAME}} | grep -q "^C /etc/dnsmasq.conf$" && \
+        dig @{{.LOCAL_IP}} -p {{.DNS_PORT}} test.{{.LOCAL_DOMAIN}} | grep -q "{{.LOCAL_IP}}"
+
+  inject-dns-nameserver:
+    desc: Inject DNS container IP into cluster nodes' resolv.conf
+    silent: true
+    cmds:
+      - echo "🔄 Injecting DNS container IP into cluster nodes..."
+      - |
+        # Get DNS container IP
+        DNS_IP=$({{.RUNTIME_BINARY}} inspect {{.DNS_CONTAINER_NAME}} --format='{{`{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}`}}')
+        if [ -z "$DNS_IP" ]; then
+          echo "❌ Failed to get DNS container IP"
+          exit 1
+        fi
+        
+        # Get all cluster nodes (excluding DNS and load balancer containers)
+        DNS_ID=$({{.RUNTIME_BINARY}} ps -q --filter "name={{.DNS_CONTAINER_NAME}}")
+        NODES=$({{.RUNTIME_BINARY}} ps -q --filter "name={{.CLUSTER_NAME}}")
+        
+        # Remove DNS container from nodes list
+        NODES=$(echo "$NODES" | grep -v "$DNS_ID")
+        
+        # Remove load balancer if it exists
+        LB_ID=$({{.RUNTIME_BINARY}} ps -q --filter "name={{.KIND_LB_CONTAINER_NAME}}")
+        if [ -n "$LB_ID" ]; then
+          NODES=$(echo "$NODES" | grep -v "$LB_ID")
+        fi
+        
+        for NODE in $NODES; do
+          NODE_NAME=$({{.RUNTIME_BINARY}} inspect $NODE --format='{{`{{.Name}}`}}' | sed 's/\///')
+          echo "  📝 Updating DNS for node: $NODE_NAME"
+          {{.RUNTIME_BINARY}} exec $NODE /bin/sh -c "if ! grep -q '^nameserver $DNS_IP$' /etc/resolv.conf; then awk '/^[^#]/{if(!p){print \"nameserver '$DNS_IP'\";p=1}}1' /etc/resolv.conf > /tmp/resolv.new && cat /tmp/resolv.new > /etc/resolv.conf; fi"
+        done
+      - echo "✅ DNS nameserver injection complete"
 
   create-env:
     desc: Creates the local environment
@@ -127,6 +193,7 @@ tasks:
       - task: init
       - task: start-dnsmasq
       - task: kubernetes:create-cluster
+      - task: inject-dns-nameserver
       - task: kubernetes:fetch-kubeconfig
       - task: kubernetes:wait-for-ready
       - task: kubernetes:set-control-plane-scheduling
@@ -142,54 +209,79 @@ tasks:
     cmds:
       - echo "🔄 Stopping cluster '{{.CLUSTER_NAME}}'..."
       - |
-        # Check if any containers are running
-        RUNNING_COUNT=$({{.RUNTIME_BINARY}} ps --filter "name={{.CLUSTER_NAME}}" --filter "status=running" -q | wc -l)
-        DNS_RUNNING=$({{.RUNTIME_BINARY}} ps --filter "name={{.DNS_CONTAINER_NAME}}" --filter "status=running" -q)
+        # Check if all containers are already stopped
+        CONTAINERS=$({{.RUNTIME_BINARY}} ps -a --filter "name={{.CLUSTER_NAME}}" --format '{{`{{.Names}}`}}' | sort -u)
+        ALL_STOPPED=true
         
-        if [ -z "$RUNNING_CONTAINERS" ] && [ -z "$DNS_RUNNING" ]; then
+        for CONTAINER in $CONTAINERS; do
+          if {{.RUNTIME_BINARY}} ps --filter "name=$CONTAINER" --filter "status=running" -q | grep -q .; then
+            ALL_STOPPED=false
+            break
+          fi
+        done
+        
+        if [ "$ALL_STOPPED" = "true" ]; then
           echo "ℹ️ Cluster '{{.CLUSTER_NAME}}' is already stopped"
           exit 0
         fi
         
-        {{.RUNTIME_BINARY}} stop $({{.RUNTIME_BINARY}} ps -q -f name={{.CLUSTER_NAME}}) >/dev/null 2>&1 || true
-        {{.RUNTIME_BINARY}} stop {{.DNS_CONTAINER_NAME}} >/dev/null 2>&1 || true
-      - echo "✅ Stopped cluster '{{.CLUSTER_NAME}}'"
+        echo "  🔄 Stopping all {{.CLUSTER_NAME}}-related containers..."
+        for CONTAINER in $CONTAINERS; do
+          echo "    ⏳ Stopping $CONTAINER..."
+          {{.RUNTIME_BINARY}} stop $CONTAINER >/dev/null 2>&1 || true
+          echo "    ✅ Stopped $CONTAINER"
+        done
+        echo "  ✅ Stopped all {{.CLUSTER_NAME}}-related containers"
+        echo "✅ Stopped cluster '{{.CLUSTER_NAME}}'"
 
   start-env:
     desc: Start the local environment
     silent: true
     cmds:
+      - echo "🔄 Starting cluster '{{.CLUSTER_NAME}}'..."
       - |
-        # Check if all containers are running
-        RUNNING_COUNT=$({{.RUNTIME_BINARY}} ps --filter "name={{.CLUSTER_NAME}}" --filter "status=running" -q | wc -l)
-        TOTAL_COUNT=$({{.RUNTIME_BINARY}} ps -a --filter "name={{.CLUSTER_NAME}}" -q | wc -l)
-        DNS_RUNNING=$({{.RUNTIME_BINARY}} ps --filter "name={{.DNS_CONTAINER_NAME}}" --filter "status=running" -q)
+        # Check if all containers are already running
+        CONTAINERS=$({{.RUNTIME_BINARY}} ps -a --filter "name={{.CLUSTER_NAME}}" --format '{{`{{.Names}}`}}' | sort -u)
+        ALL_RUNNING=true
         
-        if [ "$RUNNING_COUNT" -eq "$TOTAL_COUNT" ] && [ -n "$DNS_RUNNING" ]; then
+        for CONTAINER in $CONTAINERS; do
+          if ! {{.RUNTIME_BINARY}} ps --filter "name=$CONTAINER" --filter "status=running" -q | grep -q .; then
+            ALL_RUNNING=false
+            break
+          fi
+        done
+        
+        if [ "$ALL_RUNNING" = "true" ]; then
           echo "ℹ️ Cluster '{{.CLUSTER_NAME}}' is already running"
           exit 0
         fi
         
-        {{.RUNTIME_BINARY}} start $({{.RUNTIME_BINARY}} ps -aq -f name={{.CLUSTER_NAME}}) >/dev/null 2>&1 || true
-        {{.RUNTIME_BINARY}} start {{.DNS_CONTAINER_NAME}} >/dev/null 2>&1 || true
-        sleep 2
-        
-        RUNNING_COUNT=$({{.RUNTIME_BINARY}} ps --filter "name={{.CLUSTER_NAME}}" --filter "status=running" -q | wc -l)
-        TOTAL_COUNT=$({{.RUNTIME_BINARY}} ps -a --filter "name={{.CLUSTER_NAME}}" -q | wc -l)
-        DNS_RUNNING=$({{.RUNTIME_BINARY}} ps --filter "name={{.DNS_CONTAINER_NAME}}" --filter "status=running" -q)
-        
-        if [ "$RUNNING_COUNT" -ne "$TOTAL_COUNT" ] || [ -z "$DNS_RUNNING" ]; then
-          exit 1
-        fi
+        echo "  🔄 Starting all {{.CLUSTER_NAME}}-related containers..."
+        for CONTAINER in $CONTAINERS; do
+          echo "    ⏳ Starting $CONTAINER..."
+          {{.RUNTIME_BINARY}} start $CONTAINER >/dev/null 2>&1 || true
+          echo "    ✅ Started $CONTAINER"
+        done
+        echo "  ✅ Started all '{{.CLUSTER_NAME}}'-related containers"
+        task: kubernetes:wait-for-ready
         echo "✅ Started cluster '{{.CLUSTER_NAME}}'"
 
   destroy-env:
     desc: Destroy the local environment
     silent: true
     cmds:
-      - echo "🔄 Destroying local environment..."
+      - echo "🔄 Destroying local environment '{{.ENV_NAME}}'..."
       - task: stop-env
-      - "{{.RUNTIME_BINARY}} rm -f {{.DNS_CONTAINER_NAME}} || true"
+      - |
+        # Remove DNS container if exists
+        if [ -n "$({{.RUNTIME_BINARY}} ps -aq -f name={{.DNS_CONTAINER_NAME}})" ]; then
+          {{.RUNTIME_BINARY}} rm -f {{.DNS_CONTAINER_NAME}}
+        fi
+      - |
+        # Remove LB container if exists
+        if [ -n "$({{.RUNTIME_BINARY}} ps -aq -f name={{.KIND_LB_CONTAINER_NAME}})" ]; then
+          {{.RUNTIME_BINARY}} rm -f {{.KIND_LB_CONTAINER_NAME}}
+        fi
       - kind delete cluster --name {{.CLUSTER_NAME}}
       - |
         if [[ "$(echo {{.OS}} | tr '[:upper:]' '[:lower:]')" == "darwin" ]]; then
@@ -197,12 +289,13 @@ tasks:
           rm -rf {{.K8S_DIR}}
         elif [[ "$(echo {{.OS}} | tr '[:upper:]' '[:lower:]')" == "linux" ]]; then
           sudo rm -f /etc/systemd/resolved.conf.d/{{.LOCAL_DOMAIN}}.conf
+          sleep 2
           sudo systemctl restart systemd-resolved
           sudo rm -rf {{.K8S_DIR}}
         else
           echo "Unsupported OS: {{.OS}}"
         fi
-      - echo "✅ Local environment destroyed"
+      - echo "✅ Local environment '{{.ENV_NAME}}' destroyed"
 
   recreate-env:
     desc: Recreate the local environment
@@ -232,11 +325,5 @@ tasks:
     cmds:
       - task: destroy-env
       - rm -rf {{.VENV}}
-
-  separator:
-    internal: true
-    silent: true
-    cmds:
-      - echo ""
 
   default: task --list

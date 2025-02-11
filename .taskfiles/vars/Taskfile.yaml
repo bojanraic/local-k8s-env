@@ -3,7 +3,7 @@ version: "3"
 
 output: prefixed
 vars:
-  CONFIG_FILE: .k8s-env.yaml
+  CONFIG_FILE: "{{.ROOT_DIR}}/k8s-env.yaml"
   BASE_DIR:
     sh: yq e '.environment.base-dir' {{.CONFIG_FILE}}
   ENV_NAME:
@@ -46,6 +46,8 @@ vars:
     sh: echo "kind"
   DNS_CONTAINER_NAME:
     sh: echo "{{.CLUSTER_NAME}}-dns"
+  KIND_LB_CONTAINER_NAME:
+    sh: echo "{{.CLUSTER_NAME}}-external-load-balancer"
   ROOT_CA_PATH:
     sh: |
       if command -v mkcert >/dev/null 2>&1; then
@@ -64,6 +66,25 @@ vars:
   NGINX_INGRESS_VERSION:
     sh: yq e '.environment.internal-components[] | select(has("nginx-ingress")) | .["nginx-ingress"]' {{.CONFIG_FILE}}
   ROOT_DIR: '{{.ROOT_DIR}}'
+  DNS_PORT:
+    sh: yq e '.environment.dns.port // "53"' {{.CONFIG_FILE}}
+
+  # Certificate-related vars
+  CERT_FILE: "{{.K8S_DIR}}/certs/{{.LOCAL_DOMAIN}}.pem"
+  KEY_FILE: "{{.K8S_DIR}}/certs/{{.LOCAL_DOMAIN}}-key.pem"
+  COMBINED_FILE: "{{.K8S_DIR}}/certs/{{.LOCAL_DOMAIN}}-combined.pem"
+  CERT_DIR: "{{.K8S_DIR}}/certs"
+  CONTAINERD_CERT_DIR: "{{.K8S_DIR}}/config/containerd/certs.d/{{.REGISTRY_NAME}}.{{.LOCAL_DOMAIN}}"
+
+  # DNS-related vars
+  RESOLVER_DIR: /etc/resolver
+  RESOLVER_FILE: /etc/resolver/{{.LOCAL_DOMAIN}}
+
+  # Container network vars
+  CONTAINER_NETWORK_NAME: kind
+
+  # Kubeconfig vars
+  KUBECONFIG: "{{.K8S_DIR}}/kubeconfig"
 
 tasks:
   default: echo "The vars taskfile contains only variable definitions"

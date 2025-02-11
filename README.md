@@ -20,9 +20,9 @@ A robust and flexible local Kubernetes development environment setup using KinD,
 
 ## Demo
 
-![Demo Screencast](demo.gif)
+![Demo Screencast](demo.gif) - OLD; needs updating (coming soon)
 
-### Demo Output
+### Demo Output (OLD)
 
 The animated GIF above is sped up for brevity; the complete output of the screencast is below.
 
@@ -368,15 +368,15 @@ Password:
 
 The following are required:
 
--  macOS
+-  macOS or 🐧 Linux (recent Ubuntu or Ubuntu-based distribution)
 - 🐳 Docker (or docker-compatible runtime, e.g. OrbStack)
 - 🧰 [mise](https://mise.jdx.dev/) for tool version management
 - (optional) nss (for macOS) or libnss3-tools (for Linux) 
-   * to automatically trust mkcert-generated certificates in Firefox; alternatively you can manually configure Firefox to trust the certificates
+> [!IMPORTANT] nss is needed to automatically trust mkcert-generated certificates in Firefox
 
 NOTES: 
 - Podman is not supported yet as it is not a first-class citizen with KinD 
-- Running on Linux is not yet fully tested and might not work as expected
+- Ubuntu 24.04 and Pop!_OS 24.04 are tested and known to work, although distros with a standard systemd might work as well
 
 All other dependencies are automatically managed by mise:
 - 🐍 Python
@@ -402,38 +402,37 @@ cd <repository-name>
 ```bash
 # Install mise (if not already installed)
 curl https://mise.run | sh
-
-# Activate mise 
-```bash
-echo "eval \"\$(/home/boki/.local/bin/mise activate bash)\"" >> ~/.bashrc
 ```
-or similar for your shell
 
-3. Re-open your terminal and verify the mise environment:
+3. Activate mise 
+
+> Follow the instructions [here](https://mise.jdx.dev/getting-started/installation/) to activate mise for your shell.
+
+4. Re-open your terminal and verify the mise environment:
 ```bash 
 mise trust
 mise doctor
 ```
-4. Install tools, create Python virtual environment and install dependencies
+5. Install tools, create Python virtual environment and install dependencies
 ```bash
 mise install
 mise run deps
 ```
 
-5. Configure your environment by editing `.k8s-env.yaml`:
+6. Configure your environment by editing `.k8s-env.yaml`:
 ```yaml
 environment:
   name: my-local-env
-  local-ip: 127.0.0.1 # Change to your IP
+  local-ip: 192.168.1.123 # Change to your IP; can't be 127.0.0.1
   local-domain: me.local # Change if desired
 ```
 
-6. Create the environment:
+1. Create the environment:
 ```bash
 task create-env
 ```
 
-7. Verify the setup:
+1. Verify the setup:
 ```bash
 task validate-env
 ```
