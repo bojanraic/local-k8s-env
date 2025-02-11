@@ -29,6 +29,7 @@ tasks:
       - task: generate-dirs
       - task: generate-configs
       - task: setup-certificates
+      - task: ensure-network
       - task: setup-dnsmasq
     status:
       - test -d "{{.K8S_DIR}}/config"
@@ -225,13 +226,13 @@ tasks:
           exit 0
         fi
         
-        echo "  🔄 Stopping all {{.CLUSTER_NAME}}-related containers..."
+        echo "  🔄 Stopping all '{{.CLUSTER_NAME}}'-related containers..."
         for CONTAINER in $CONTAINERS; do
           echo "    ⏳ Stopping $CONTAINER..."
           {{.RUNTIME_BINARY}} stop $CONTAINER >/dev/null 2>&1 || true
           echo "    ✅ Stopped $CONTAINER"
         done
-        echo "  ✅ Stopped all {{.CLUSTER_NAME}}-related containers"
+        echo "  ✅ Stopped all '{{.CLUSTER_NAME}}'-related containers"
         echo "✅ Stopped cluster '{{.CLUSTER_NAME}}'"
 
   start-env:
@@ -256,14 +257,14 @@ tasks:
           exit 0
         fi
         
-        echo "  🔄 Starting all {{.CLUSTER_NAME}}-related containers..."
+        echo "  🔄 Starting all '{{.CLUSTER_NAME}}'-related containers..."
         for CONTAINER in $CONTAINERS; do
           echo "    ⏳ Starting $CONTAINER..."
           {{.RUNTIME_BINARY}} start $CONTAINER >/dev/null 2>&1 || true
           echo "    ✅ Started $CONTAINER"
         done
         echo "  ✅ Started all '{{.CLUSTER_NAME}}'-related containers"
-        task: kubernetes:wait-for-ready
+        sleep 3
         echo "✅ Started cluster '{{.CLUSTER_NAME}}'"
 
   destroy-env:
@@ -325,5 +326,19 @@ tasks:
     cmds:
       - task: destroy-env
       - rm -rf {{.VENV}}
+
+  ensure-network:
+    desc: Ensure the container network exists
+    silent: true
+    cmds:
+      - echo "🔄 Checking for '{{.CONTAINER_NETWORK_NAME}}' network..."
+      - |
+        if ! {{.RUNTIME_BINARY}} network ls --format '{{`{{.Name}}`}}' | grep -q '^{{.CONTAINER_NETWORK_NAME}}$'; then
+          echo "  🔄 Creating '{{.CONTAINER_NETWORK_NAME}}' network..."
+          {{.RUNTIME_BINARY}} network create {{.CONTAINER_NETWORK_NAME}}
+          echo "  ✅ '{{.CONTAINER_NETWORK_NAME}}' network created"
+        else
+          echo "ℹ️ '{{.CONTAINER_NETWORK_NAME}}' network already exists"
+        fi
 
   default: task --list
