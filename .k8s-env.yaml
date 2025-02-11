@@ -69,7 +69,7 @@ environment:
       config:
         chart: bitnami/postgresql # the chart to use
         # renovate: datasource=helm depName=postgresql
-        version: 16.4.6
+        version: 16.4.7
 
     - name: mongodb
       enabled: false # whether or not to install this component and expose the port(s)
