@@ -28,7 +28,7 @@ kustomize = "5.6.0"
 helm = "3.17.0"
 
 # renovate: datasource=github-releases depName=helmfile/helmfile
-helmfile = "0.170.1"
+helmfile = "0.171.0"
 
 # renovate: datasource=github-releases depName=yannh/kubeconform
 kubeconform = "0.6.7"
