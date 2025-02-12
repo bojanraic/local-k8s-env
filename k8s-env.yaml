@@ -101,7 +101,7 @@ environment:
       config:
         chart: oci://ghcr.io/dragonflydb/dragonfly/helm/dragonfly # the chart to use
         # renovate: datasource=docker depName=dragonflydb/dragonfly
-        version: v1.26.3
+        version: v1.27.0
         values: # additional values to use for the chart
           image:
             repository: ghcr.io/dragonflydb/dragonfly # the image to use
