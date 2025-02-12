@@ -80,9 +80,6 @@ vars:
   RESOLVER_DIR: /etc/resolver
   RESOLVER_FILE: /etc/resolver/{{.LOCAL_DOMAIN}}
 
-  # Container network vars
-  CONTAINER_NETWORK_NAME: kind
-
   # Kubeconfig vars
   KUBECONFIG: "{{.K8S_DIR}}/kubeconfig"
 
