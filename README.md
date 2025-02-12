@@ -76,7 +76,7 @@ mise install
 mise run deps
 ```
 
-6. Configure your environment by editing `.k8s-env.yaml`:
+6. Configure your environment by editing `k8s-env.yaml`:
 ```yaml
 environment:
   name: my-local-env
@@ -98,20 +98,18 @@ task validate-env
 
 ```
 .
-├── .k8s-env.yaml           # Main configuration file
-├── .mise.toml              # Tool version management
-├── templates/              # Jinja2 templates for configuration
-│   ├── containerd/         # Containerd configuration templates
-│   ├── coredns/            # CoreDNS configuration templates
-│   ├── dnsmasq/            # DNSmasq configuration templates
-│   ├── helmfile/           # Helmfile configuration templates
-│   ├── kind/               # KinD cluster configuration templates
-│   ├── tests/              # Test configuration templates
-│   └── presets.yaml        # Service presets and default values
-├── .local/                 # Runtime data (git-ignored)
-├── .scripts/               # Python scripts for configuration
-├── .taskfiles/             # Task definitions
-└── Taskfile.yaml           # Main task definitions
+├── k8s-env.yaml              # Main configuration file
+├── .mise.toml                # Tool version management
+├── templates/                # Jinja2 templates for configuration
+│   ├── containerd/           # Containerd configuration templates
+│   ├── dnsmasq/              # DNSmasq configuration templates
+│   ├── helmfile/             # Helmfile configuration templates
+│   ├── kind/                 # KinD cluster configuration templates
+│   └── service_presets.yaml  # Service presets and default values
+├── .local/                   # Runtime data (git-ignored)
+├── .taskfiles/               # Task definitions
+├── generate_configs.py       # Python script for generating configuration files
+└── Taskfile.yaml             # Main task definitions
 ```
 
 ### Templates Directory
@@ -128,7 +126,7 @@ The `templates/` directory contains all Jinja2 templates used to generate config
 
 ## Configuration
 
-The environment is configured through `.k8s-env.yaml`. Key configuration options:
+The environment is configured through `k8s-env.yaml`. Key configuration options:
 
 - `name`: Environment name (used for cluster and resource naming)
 - `base-dir`: Directory for storing cluster data and configs
@@ -137,7 +135,7 @@ The environment is configured through `.k8s-env.yaml`. Key configuration options
 - `nodes`: Control plane and worker node count
 - `services`: Enable/disable and configure development services
 
-To view the full list of configuration options, review the comments in the `.k8s-env.yaml` file.
+To view the full list of configuration options, review the comments in the `k8s-env.yaml` file.
 
 ## Available Tasks
 
@@ -155,7 +153,7 @@ Use `task --list` to see all available tasks. Main tasks include:
 
 ```
 .
-├── .k8s-env.yaml                      # Main configuration file
+├── k8s-env.yaml                       # Main configuration file
 ├── .local/                            # Default directory for cluster data and configs
 │   └── <env-name>/                    # Environment-specific directory (e.g. my-local-env)
 │       ├── certs/                     # TLS certificates and keys
@@ -176,7 +174,6 @@ Use `task --list` to see all available tasks. Main tasks include:
 │       │   └── worker-0/              # Worker node storage
 │       ├── kubeconfig                 # Cluster access configuration
 │       └── service-secrets.txt        # Generated service credentials
-├── .scripts/                          # Setup and configuration scripts
 ├── .taskfiles/                        # Task definitions and variables
 │   ├── help/                          # Help tasks
 │   ├── kubernetes/                    # Kubernetes-related tasks
@@ -186,9 +183,9 @@ Use `task --list` to see all available tasks. Main tasks include:
 └── Taskfile.yaml                      # Main task definitions
 ```
 
-The `.local` directory (configurable via `base-dir` in `.k8s-env.yaml`) is created when you first run `task create-env` and contains all runtime data and configurations. Key points about the `.local` directory:
+The `.local` directory (configurable via `base-dir` in `k8s-env.yaml`) is created when you first run `task create-env` and contains all runtime data and configurations. Key points about the `.local` directory:
 
-- **Location**: By default, it's created in the project root but can be configured via `base-dir` in `.k8s-env.yaml`
+- **Location**: By default, it's created in the project root but can be configured via `base-dir` in `k8s-env.yaml`
 - **Persistence**: Contains all persistent data, including certificates, logs, and storage
 - **Environment Isolation**: Each environment gets its own subdirectory (e.g., `.local/my-local-env/`)
 - **Backup**: You may want to back up the `certs` and `config` directories
@@ -200,7 +197,7 @@ The `.local` directory (configurable via `base-dir` in `.k8s-env.yaml`) is creat
 
 Services are defined in two places:
 
-1. `.k8s-env.yaml`: Service enablement and specific configurations
+1. `k8s-env.yaml`: Service enablement and specific configurations
 2. `templates/service_presets.yaml`: Default service configurations and ports
 
 ### Service Presets
@@ -248,7 +245,7 @@ Once the environment is running, services are accessible through:
 
 ### Using the Local Container Registry
 
-The environment includes a local container registry accessible at `<registry-name>.<local-domain>`. The value is configurable via `registry.name` in `.k8s-env.yaml`. 
+The environment includes a local container registry accessible at `<registry-name>.<local-domain>`. The value is configurable via `registry.name` in `k8s-env.yaml`. 
 To use it:
 
 1. **Push Images**:
@@ -275,7 +272,7 @@ To use it:
            image: cr.me.local/myapp:latest
    ```
 
-> Note: Replace `me.local` with your configured `local-domain` value from `.k8s-env.yaml`
+> Note: Replace `me.local` with your configured `local-domain` value from `k8s-env.yaml`
 
 ## Troubleshooting
 
