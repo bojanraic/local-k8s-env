@@ -1,10 +1,9 @@
 environment:
-  
   # General settings
   name: dev-me # name of the environment; drives the naming of kubernetes cluster and nodes, host containers etc
   base-dir: ${PWD}/.local # where kubernetes logs/storage, and various config files are stored
   expand-base-dir-vars: true # set to false if you use absolute path for base-dir; true if you use relative/expanded path
-  
+
   # At the moment, KinD on macOS has been tested, with a docker-compatible runtime
   # Podman has been tried out but it is not a first-class citizen with KinD so it is not supported as of yet
   # Linux has not been tested yet
@@ -12,7 +11,7 @@ environment:
     name: kind # provider for kubernetes clusters, must be kind for now
     runtime: docker # docker or podman for container runtime
 
-  kubernetes: 
+  kubernetes:
     api-port: 6443 # port for the API server, will be exposed to the host machine as local-ip:api-port
     image: kindest/node # image for the kind nodes
     # renovate: datasource=docker depName=kindest/node versioning=docker
@@ -23,7 +22,7 @@ environment:
     workers: 1 # number of worker nodes
     allow-scheduling-on-control-plane: true # whether to allow scheduling on control plane nodes even when workers exist
 
-  local-ip: 192.168.1.120 # local ip, mapping to the host IP to use for DNS resolution and wildcard certificates
+  local-ip: 192.168.1.100 # local ip, mapping to the host IP to use for DNS resolution and wildcard certificates
   local-domain: dev.me # a domain name to use for custom dns resolution and wildcard certificates 
   local-lb-ports: # list of ports to expose on the load balancer side, mapping to the host machine
     - 80 # http port for nginx ingress controller
@@ -48,7 +47,7 @@ environment:
   services: # additional services to deploy within the cluster 
     - name: mysql
       enabled: false # whether or not to install this component and expose the port(s)
-      ports: 
+      ports:
         - 3306 # port to expose on the host machine
       storage: # use PVC for storage
         size: 10Gi # size of PVC
@@ -62,7 +61,7 @@ environment:
 
     - name: postgres
       enabled: true # whether or not to install this component and expose the port(s)
-      ports: 
+      ports:
         - 5432
       storage: # use PVC for storage
         size: 5Gi
@@ -73,7 +72,7 @@ environment:
 
     - name: mongodb
       enabled: false # whether or not to install this component and expose the port(s)
-      ports: 
+      ports:
         - 27017 # port to expose on the host machine
       storage: # use PVC for storage
         size: 5Gi # size of PVC
@@ -81,10 +80,10 @@ environment:
         chart: bitnami/mongodb # the chart to use
         # renovate: datasource=helm depName=mongodb
         version: 16.4.3
-  
+
     - name: rabbitmq
       enabled: false # whether or not to install this component and expose the port(s)
-      ports: 
+      ports:
         - 5672 # port to expose on the host machine
       storage: # use PVC for storage
         size: 2Gi # size of PVC
@@ -94,9 +93,9 @@ environment:
         version: 15.3.1
 
     - name: dragonfly
-      enabled: true # whether or not to install this component and expose the port(s)
-      ports: 
-        - 6379 
+      enabled: false # whether or not to install this component and expose the port(s)
+      ports:
+        - 6379
       storage:
         size: 1Gi
       config:

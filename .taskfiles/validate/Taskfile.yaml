@@ -166,7 +166,7 @@ tasks:
         
         # Wait for pod to be ready
         echo "  ⏳ Waiting for test pod to be ready..."
-        kubectl wait --for=condition=ready pod/netcat-internal-test -n default --timeout=30s
+        kubectl wait --for=condition=ready pod/netcat-internal-test -n default --timeout=180s
         
         # Test each service
         FAILED=0

@@ -10,3 +10,4 @@
 .DS_Store
 kubeconfig
 tests/registry/*values*.y?ml
+demo.cast
