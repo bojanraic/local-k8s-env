@@ -91,7 +91,7 @@ environment:
       config:
         chart: bitnami/rabbitmq # the chart to use
         # renovate: datasource=helm depName=rabbitmq
-        version: 15.3.0
+        version: 15.3.1
 
     - name: dragonfly
       enabled: true # whether or not to install this component and expose the port(s)
