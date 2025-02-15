@@ -16,7 +16,7 @@ task = "3.41.0"
 yq = "v4.45.1"
 
 # renovate: datasource=github-releases depName=kubernetes-sigs/kind
-kind = "0.26.0"
+kind = "0.27.0"
 
 # renovate: datasource=github-tags depName=kubernetes/kubectl
 kubectl = "1.32.2"
