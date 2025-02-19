@@ -32,8 +32,23 @@ def setup_jinja_env():
         extensions=['jinja2.ext.do']
     )
     
+    # Custom YAML dumper class to handle multiline strings
+    class MyDumper(yaml.Dumper):
+        def represent_scalar(self, tag, value, style=None):
+            if isinstance(value, str) and '\n' in value:
+                style = '|'
+            return super().represent_scalar(tag, value, style)
+    
+    # Modified YAML dumper to handle multiline strings
+    def custom_yaml_dump(value):
+        return yaml.dump(value, 
+                        Dumper=MyDumper,
+                        default_flow_style=False,
+                        default_style=None,
+                        allow_unicode=True)
+    
     # Add custom filters
-    env.filters['to_yaml'] = lambda value: yaml.dump(value, default_flow_style=False)
+    env.filters['to_yaml'] = custom_yaml_dump
     
     return env
 
@@ -59,50 +74,48 @@ def prepare_context(config):
         service_name = service['name']
         service_namespace = service.get('namespace', service_name)
         
-        # Always apply auth presets as they contain critical security settings
-        if use_service_presets and service_name in service_auth_presets:
-            service.update(service_auth_presets[service_name])
+        # Initialize base_values
+        base_values = {}
         
-            base_values = service_values_presets[service_name]
-            # Handle service values based on use-service-presets flag
-            if use_service_presets and service_name in service_values_presets:
-                base_values = service_values_presets[service_name]
-                # Prepare base values
-                base_values.update({
-                    'fullNameOverride': service_name,
-                    'nameOverride': service_name
-                })
-                # Add architecture if present
-                if 'architecture' in service_values_presets[service_name]:
-                    base_values['architecture'] = service_values_presets[service_name]['architecture']
-                # Add persistence configuration
-                if 'primary' in service_values_presets[service_name]:
-                    base_values['primary'] = {
-                        'persistence': {
-                            'enabled': True,
-                            'size': service['storage']['size']
-                        }
-                    }
-                elif 'persistence' in service_values_presets[service_name]:
-                    base_values['persistence'] = {
+        # Apply presets if enabled
+        if use_service_presets and service_name in service_values_presets:
+            base_values = service_values_presets[service_name].copy()
+            # Add standard configurations
+            base_values.update({
+                'fullNameOverride': service_name,
+                'nameOverride': service_name
+            })
+            
+            # Add persistence configuration
+            if 'primary' in service_values_presets[service_name]:
+                base_values['primary'] = {
+                    'persistence': {
                         'enabled': True,
                         'size': service['storage']['size']
                     }
-                elif 'storage' in service_values_presets[service_name]:
-                    # Handle dragonfly-style storage configuration
-                    base_values['storage'] = {
-                        'enabled': service_values_presets[service_name]['storage'].get('enabled', False),
-                        'requests': service['storage']['size']
-                    }
-                # Add useStatefulSet if present
-                if 'useStatefulSet' in service_values_presets[service_name]:
-                    base_values['useStatefulSet'] = True
-            # Store base values separately - they'll be used in the template
-            service['base_values'] = base_values
-        else:
-            # When presets are disabled, ensure we have an empty dict for values
-            service['config']['values'] = service.get('config', {}).get('values', {})
-            
+                }
+            elif 'persistence' in service_values_presets[service_name]:
+                base_values['persistence'] = {
+                    'enabled': True,
+                    'size': service['storage']['size']
+                }
+            elif 'storage' in service_values_presets[service_name]:
+                base_values['storage'] = {
+                    'enabled': service_values_presets[service_name]['storage'].get('enabled', False),
+                    'requests': service['storage']['size']
+                }
+        
+        # Always apply auth presets for security
+        if service_name in service_auth_presets:
+            base_values.update(service_auth_presets[service_name])
+        
+        # Merge custom values from config if they exist
+        custom_values = service.get('config', {}).get('values', {})
+        if custom_values:
+            service['custom_values'] = custom_values
+        
+        # Store base values
+        service['base_values'] = base_values
         service['namespace'] = service_namespace
         enabled_services.append(service)
     
