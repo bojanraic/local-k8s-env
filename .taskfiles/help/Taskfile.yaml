@@ -9,14 +9,12 @@ tasks:
     silent: true
     cmds:
       - "echo 🏢 Cluster Name: {{.CLUSTER_NAME}}"
-      - kubectl --kubeconfig {{.KUBECONFIG_PATH}} cluster-info
-    preconditions:
-      - sh: |
-          {{.RUNTIME_BINARY}} cluster list | grep -q "{{.CLUSTER_NAME}}"
-        msg: "❌ Local cluster {{.CLUSTER_NAME}} does not exist."
-      - sh: |
-          test -f {{.KUBECONFIG_PATH}}
-        msg: "❌ Kubeconfig file {{.KUBECONFIG_PATH}} for {{.CLUSTER_NAME}} does not exist."
+      - |
+        if {{.RUNTIME_BINARY}} cluster list 2>/dev/null | grep -q "{{.CLUSTER_NAME}}"; then
+          kubectl --kubeconfig {{.KUBECONFIG_PATH}} cluster-info
+        else
+          echo "ℹ️ Cluster {{.CLUSTER_NAME}} does not exist"
+        fi
 
   environment:
     desc: "Show environment configuration details"
@@ -51,7 +49,7 @@ tasks:
       - |
         echo "🔍 DNS Configuration:"
         echo "├── Container Name: {{.DNS_CONTAINER_NAME}}"
-        echo "├── Status: $( {{.RUNTIME_BINARY}} ps --filter name={{.DNS_CONTAINER_NAME}} --format '{{.Status}}' || echo 'Not running' )"
+        echo "├── Status: $( {{.RUNTIME_BINARY}} ps --filter name={{.DNS_CONTAINER_NAME}} --format '{{`{{.Status}}`}}' || echo 'Not running' )"
         echo "└── Config File: {{.K8S_DIR}}/config/dnsmasq.conf"
         
         if [ -f "{{.K8S_DIR}}/config/dnsmasq.conf" ]; then
@@ -90,9 +88,65 @@ tasks:
           openssl x509 -in {{.K8S_DIR}}/certs/{{.LOCAL_DOMAIN}}.pem -noout -subject -issuer -dates | sed 's/^/│   ├── /'
         fi
         echo "└── Wildcard TLS Secret Status:"
-        kubectl --kubeconfig {{.KUBECONFIG_PATH}} get secret wildcard-tls -n kube-system -o json | \
-          jq -r '"\    ├── Name: " + .metadata.name, "\    ├── Namespace: " + .metadata.namespace, "\    └── Age: " + .metadata.creationTimestamp' 2>/dev/null || \
-          echo "    └── Not found"
+        if {{.PROVIDER_BINARY}} get clusters 2>/dev/null | grep -q "{{.CLUSTER_NAME}}" && test -f {{.KUBECONFIG_PATH}}; then
+          if kubectl --kubeconfig {{.KUBECONFIG_PATH}} get secret wildcard-tls -n kube-system >/dev/null 2>&1; then
+            SECRET=$(kubectl --kubeconfig {{.KUBECONFIG_PATH}} get secret wildcard-tls -n kube-system -o json)
+            echo "    ├── Name: $(echo "$SECRET" | jq -r '.metadata.name')"
+            echo "    ├── Namespace: $(echo "$SECRET" | jq -r '.metadata.namespace')"
+            echo "    └── Age: $(echo "$SECRET" | jq -r '.metadata.creationTimestamp')"
+          else
+            echo "    └── Not found"
+          fi
+        else
+          echo "    └── Cluster not available"
+        fi
+
+  logs:
+    desc: "Show logging information and recent logs"
+    silent: true
+    cmds:
+      - |
+        echo "📝 Logging Information:"
+        echo "├── Base Path: {{.K8S_DIR}}/logs"
+      - task: _show_node_logs
+        vars:
+          NODE_TYPE: control
+          PREFIX: "│"
+          TITLE: "Control Plane Logs:"
+          COUNT: "{{.SERVERS}}"
+      - task: _show_node_logs
+        vars:
+          NODE_TYPE: worker
+          PREFIX: " "
+          TITLE: "Worker Logs:"
+          COUNT: "{{.WORKERS}}"
+
+  _show_node_logs:
+    internal: true
+    silent: true
+    cmds:
+      - |
+        echo "{{if eq .NODE_TYPE "control"}}├{{else}}└{{end}}── {{.TITLE}}"
+        for i in $(seq 0 $(expr {{.COUNT}} - 1)); do
+          LOG_DIR="{{.K8S_DIR}}/logs/{{.NODE_TYPE}}-$i"
+          if [ -d "$LOG_DIR" ]; then
+            SIZE=$(du -sh "$LOG_DIR" 2>/dev/null | cut -f1 || echo "N/A")
+            echo "{{.PREFIX}}   ├── {{.NODE_TYPE}}-$i:"
+            echo "{{.PREFIX}}   │   ├── Size: $SIZE"
+            # Check containers directory
+            if [ -d "$LOG_DIR/containers" ] && [ -n "$(ls -A $LOG_DIR/containers 2>/dev/null)" ]; then
+              echo "{{.PREFIX}}   │   ├── Container Logs:"
+              ls -t "$LOG_DIR/containers" | head -n 3 | sed 's/^/{{.PREFIX}}   │   │   ├── /'
+            fi
+            # Check pods directory
+            if [ -d "$LOG_DIR/pods" ] && [ -n "$(ls -A $LOG_DIR/pods 2>/dev/null)" ]; then
+              echo "{{.PREFIX}}   │   └── Pod Logs:"
+              ls -t "$LOG_DIR/pods" | head -n 3 | sed 's/^/{{.PREFIX}}   │       ├── /'
+            else
+              echo "{{.PREFIX}}   │   └── No logs present"
+            fi
+          fi
+        done
 
   all:
     desc: "Show all environment information"
@@ -107,5 +161,7 @@ tasks:
       - task: dns
       - echo ""
       - task: storage
+      - echo ""
+      - task: logs
       - echo ""
       - task: certificates

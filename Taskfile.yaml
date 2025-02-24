@@ -21,10 +21,24 @@ tasks:
     status:
       - test -f {{.VENV}}/pyvenv.cfg
 
+  check-runtime:
+    desc: Check if container runtime is running
+    silent: true
+    cmds:
+      - |
+        echo "🔍 Checking if {{.RUNTIME}} is running..."
+        if ! {{.RUNTIME_BINARY}} info >/dev/null 2>&1; then
+          echo "❌ {{.RUNTIME}} is not running. Please start {{.RUNTIME}} and try again."
+          exit 1
+        fi
+        echo "✅ {{.RUNTIME}} is running"
+    status:
+      - "{{.RUNTIME_BINARY}} info >/dev/null 2>&1"
+
   init:
     desc: Initialize the local environment
     silent: true
-    deps: [check-deps]
+    deps: [check-deps, check-runtime]
     cmds:
       - task: generate-dirs
       - task: generate-configs
@@ -190,12 +204,13 @@ tasks:
   create-env:
     desc: Creates the local environment
     silent: true
+    deps: [check-runtime]
     cmds:
       - task: init
       - task: start-dnsmasq
       - task: kubernetes:create-cluster
-      - task: inject-dns-nameserver
       - task: kubernetes:fetch-kubeconfig
+      - task: inject-dns-nameserver
       - task: kubernetes:wait-for-ready
       - task: kubernetes:set-control-plane-scheduling
       - task: kubernetes:label-worker-nodes
@@ -207,6 +222,7 @@ tasks:
   stop-env:
     desc: Stop the local environment
     silent: true
+    deps: [check-runtime]
     cmds:
       - echo "🔄 Stopping cluster '{{.CLUSTER_NAME}}'..."
       - |
@@ -238,6 +254,7 @@ tasks:
   start-env:
     desc: Start the local environment
     silent: true
+    deps: [check-runtime]
     cmds:
       - echo "🔄 Starting cluster '{{.CLUSTER_NAME}}'..."
       - |
@@ -270,6 +287,7 @@ tasks:
   destroy-env:
     desc: Destroy the local environment
     silent: true
+    deps: [check-runtime]
     cmds:
       - echo "🔄 Destroying local environment '{{.ENV_NAME}}'..."
       - task: stop-env
@@ -283,7 +301,8 @@ tasks:
         if [ -n "$({{.RUNTIME_BINARY}} ps -aq -f name={{.KIND_LB_CONTAINER_NAME}})" ]; then
           {{.RUNTIME_BINARY}} rm -f {{.KIND_LB_CONTAINER_NAME}}
         fi
-      - kind delete cluster --name {{.CLUSTER_NAME}}
+      - |
+        {{.PROVIDER_BINARY}} delete cluster --name {{.CLUSTER_NAME}}
       - |
         if [[ "$(echo {{.OS}} | tr '[:upper:]' '[:lower:]')" == "darwin" ]]; then
           sudo rm -f /etc/resolver/{{.LOCAL_DOMAIN}}

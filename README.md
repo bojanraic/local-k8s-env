@@ -65,7 +65,7 @@ curl https://mise.run | sh
 
 > Follow the instructions [here](https://mise.jdx.dev/getting-started/installation/) to activate mise for your shell.
 
-4. Re-open your terminal and verify the mise environment:
+4. Re-open your terminal, navigate to the project root directory and verify the mise environment:
 ```bash 
 mise trust
 mise doctor
@@ -234,7 +234,7 @@ Once the environment is running, services are accessible through:
    # Example for PostgreSQL
    psql -h postgres.me.local -U postgres
    ```
-> NOTE: DNS resolution is handled by the local DNSMasq container, which is automatically started when you create or start the environment. It will resolve any hostname with the `<local-domain>` to the local IP address. This means that you can use any hostname to access the services via corresponding ports. The advice is to use the service name as the hostname, for example `postgres.me.local` or `rabbitmq.me.local` instead of `localhost`. One additional advantage is that TLS certificates are automatically generated and trustedfor the `<local-domain>` and can be used for the services.
+> NOTE: DNS resolution is handled by the local DNSMasq container, which is automatically started when you create or start the environment. It will resolve any hostname with the `<local-domain>` to the local IP address. This means that you can use any hostname to access the services via corresponding ports. The advice is to use the service name as the hostname, for example `postgres.me.local` or `rabbitmq.me.local` instead of `localhost`. One additional advantage is that TLS certificates are automatically generated and trusted for the `<local-domain>` and can be used for the services.
 
 1. **Service Credentials**:
    - Passwords for password-protected services are automatically generated and stored in `<local-dir>/<env-name>/service-secrets.txt`

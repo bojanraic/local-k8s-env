@@ -26,7 +26,8 @@ vars:
   ALLOW_CP_SCHEDULING:
     sh: yq e '.environment.nodes["allow-scheduling-on-control-plane"] // false' {{.CONFIG_FILE}}
   REGISTRY_HOST: "{{.REGISTRY_NAME}}.{{.LOCAL_DOMAIN}}"
-  PROVIDER: 'kind'
+  PROVIDER:
+    sh: yq e '.environment.provider.name' {{.CONFIG_FILE}}
   PROVIDER_BINARY:
     sh: yq e '.environment.provider.name' {{.CONFIG_FILE}}
   RUNTIME:

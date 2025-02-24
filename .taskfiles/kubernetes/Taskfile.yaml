@@ -9,10 +9,10 @@ tasks:
     silent: true
     cmds:
       - |
-        echo "⏳ Waiting for KinD cluster..."
+        echo "⏳ Waiting for {{.PROVIDER}} cluster..."
         
         # Set context and verify connection
-        kubectl --kubeconfig {{.KUBECONFIG_PATH}} config use-context kind-{{.CLUSTER_NAME}}
+        kubectl --kubeconfig {{.KUBECONFIG_PATH}} config use-context {{.PROVIDER}}-{{.CLUSTER_NAME}}
         
         # Give the API server a moment to initialize
         sleep 3
@@ -25,11 +25,13 @@ tasks:
     desc: Fetch kubeconfig for the kubernetes cluster
     silent: true
     cmds:
-      - kind get kubeconfig --name {{.CLUSTER_NAME}} > {{.KUBECONFIG_PATH}}
+      - |
+        {{.PROVIDER_BINARY}} get kubeconfig --name {{.CLUSTER_NAME}} > {{.KUBECONFIG_PATH}}
       - chmod 0600 {{.KUBECONFIG_PATH}}
     preconditions:
       - msg: "{{.PROVIDER}} cluster {{.CLUSTER_NAME}} not found"
-        sh: kind get clusters | grep -q {{.CLUSTER_NAME}}
+        sh: |
+          {{.PROVIDER_BINARY}} get clusters | grep -q {{.CLUSTER_NAME}}
     status:
       - test -f {{.KUBECONFIG_PATH}} && grep -q {{.CLUSTER_NAME}} {{.KUBECONFIG_PATH}}
 
@@ -131,21 +133,24 @@ tasks:
       - echo "✅ Service secrets fetched successfully"
 
   create-cluster:
-    desc: Create a new KinD cluster
+    desc: Create a new {{.PROVIDER}} cluster
     silent: true
     status:
       - test -f {{.K8S_DIR}}/config/cluster.yaml
-      - kind get clusters | grep -q {{.CLUSTER_NAME}}
+      - |
+        {{.PROVIDER_BINARY}} get clusters | grep -q {{.CLUSTER_NAME}}
     cmds:
-      - echo "🔄 Creating KinD cluster '{{.CLUSTER_NAME}}'..."
-      - kind create cluster --config {{.K8S_DIR}}/config/cluster.yaml --name {{.CLUSTER_NAME}}
-      - echo "✅ KinD cluster '{{.CLUSTER_NAME}}' created successfully"
+      - echo "🔄 Creating {{.PROVIDER}} cluster '{{.CLUSTER_NAME}}'..."
+      - |
+        {{.PROVIDER_BINARY}} create cluster --config {{.K8S_DIR}}/config/cluster.yaml --name {{.CLUSTER_NAME}}
+      - echo "✅ {{.PROVIDER_BINARY}} cluster '{{.CLUSTER_NAME}}' created successfully"
 
   delete-cluster:
     desc: Delete the kubernetes cluster
     silent: true
     cmds:
-      - kind delete cluster --name {{.CLUSTER_NAME}}
+      - |
+        {{.PROVIDER_BINARY}} delete cluster --name {{.CLUSTER_NAME}}
 
   recreate-cluster:
     desc: Recreate the kubernetes cluster
