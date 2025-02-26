@@ -171,7 +171,7 @@ tasks:
     silent: true
     vars:
       SHELL_NAME:
-        sh: basename "$SHELL"
+        sh: ps -p $PPID -o comm= | sed 's/^-//'
     cmds:
       - |
         echo "🔄 Setting up shell completions..."
@@ -265,17 +265,37 @@ tasks:
       - test -f "{{.COMPLETION_DIR}}/_helmfile"
       - test -f "{{.COMPLETION_DIR}}/_kustomize"
       - test -f "{{.COMPLETION_DIR}}/_yq"
+      - grep -q "^fpath=" "{{.SHELL_RC}}"
+      - grep -q "^autoload -Uz compinit" "{{.SHELL_RC}}"
+      - grep -q "^compinit" "{{.SHELL_RC}}"
     cmds:
       - |
         mkdir -p "{{.COMPLETION_DIR}}"
+        
+        # Create or update zsh completion configuration
+        ZSH_COMP_CONFIG=$(cat << 'EOF'
+
+        # Completion configuration
+        fpath=({{.COMPLETION_DIR}} $fpath)
+        autoload -Uz compinit
+        compinit
+
+        # Aliases and their completions
+        alias k=kubectl
+        compdef k=kubectl
+        EOF
+        )
+        
+        # Add completion config if not present
+        if ! grep -q "^fpath=" "{{.SHELL_RC}}"; then
+          echo "$ZSH_COMP_CONFIG" >> "{{.SHELL_RC}}"
+        fi
         
         # Task completion
         task --completion zsh > "{{.COMPLETION_DIR}}/_task"
         
         # Kubectl completion
         kubectl completion zsh > "{{.COMPLETION_DIR}}/_kubectl"
-        grep -q "alias k=kubectl" "{{.SHELL_RC}}" || echo "alias k=kubectl" >> "{{.SHELL_RC}}"
-        grep -q "compdef k=kubectl" "{{.SHELL_RC}}" || echo "compdef k=kubectl" >> "{{.SHELL_RC}}"
         
         # Helm completion
         helm completion zsh > "{{.COMPLETION_DIR}}/_helm"
