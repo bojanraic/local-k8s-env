@@ -10,7 +10,7 @@ tasks:
     cmds:
       - "echo 🏢 Cluster Name: {{.CLUSTER_NAME}}"
       - |
-        if {{.RUNTIME_BINARY}} cluster list 2>/dev/null | grep -q "{{.CLUSTER_NAME}}"; then
+        if {{.PROVIDER_BINARY}} get clusters 2>/dev/null | grep -q "{{.CLUSTER_NAME}}"; then
           kubectl --kubeconfig {{.KUBECONFIG_PATH}} cluster-info
         else
           echo "ℹ️ Cluster {{.CLUSTER_NAME}} does not exist"
@@ -102,11 +102,11 @@ tasks:
         fi
 
   logs:
-    desc: "Show logging information and recent logs"
+    desc: "Show logs information and recent logs"
     silent: true
     cmds:
       - |
-        echo "📝 Logging Information:"
+        echo "📝 Logs Information:"
         echo "├── Base Path: {{.K8S_DIR}}/logs"
       - task: _show_node_logs
         vars:
