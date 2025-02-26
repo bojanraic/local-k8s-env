@@ -165,3 +165,171 @@ tasks:
       - task: logs
       - echo ""
       - task: certificates
+
+  setup-completions:
+    desc: "Configure shell completions for installed tools"
+    silent: true
+    vars:
+      SHELL_NAME:
+        sh: basename "$SHELL"
+    cmds:
+      - |
+        echo "🔄 Setting up shell completions..."
+        case "{{.SHELL_NAME}}" in
+          bash)
+            task help:setup-completions-bash
+            ;;
+          zsh)
+            task help:setup-completions-zsh
+            ;;
+          fish)
+            task help:setup-completions-fish
+            ;;
+          *)
+            echo "❌ Unsupported shell: {{.SHELL_NAME}}"
+            exit 1
+            ;;
+        esac
+        echo "✅ Shell completions configured"
+        echo "👉 Please restart your shell or source your shell rc file to enable completions"
+
+  setup-completions-bash:
+    desc: "Configure tools completions for the bash shell"
+    silent: true
+    vars:
+      COMPLETION_DIR: "$HOME/.local/share/bash-completion/completions"
+      SHELL_RC: "$HOME/.bashrc"
+    status:
+      - test -d "{{.COMPLETION_DIR}}"
+      - test -f "{{.COMPLETION_DIR}}/task.bash"
+      - test -f "{{.COMPLETION_DIR}}/kubectl.bash"
+      - test -f "{{.COMPLETION_DIR}}/helm.bash"
+      - test -f "{{.COMPLETION_DIR}}/kind.bash"
+      - test -f "{{.COMPLETION_DIR}}/helmfile.bash"
+      - test -f "{{.COMPLETION_DIR}}/kustomize.bash"
+      - test -f "{{.COMPLETION_DIR}}/yq.bash"
+      - |
+        grep -q "source.*task.bash" "{{.SHELL_RC}}" && \
+        grep -q "source.*kubectl.bash" "{{.SHELL_RC}}" && \
+        grep -q "source.*helm.bash" "{{.SHELL_RC}}" && \
+        grep -q "source.*kind.bash" "{{.SHELL_RC}}" && \
+        grep -q "source.*helmfile.bash" "{{.SHELL_RC}}" && \
+        grep -q "source.*kustomize.bash" "{{.SHELL_RC}}" && \
+        grep -q "source.*yq.bash" "{{.SHELL_RC}}"
+    cmds:
+      - |
+        mkdir -p "{{.COMPLETION_DIR}}"
+        
+        # Task completion
+        task --completion bash > "{{.COMPLETION_DIR}}/task.bash"
+        grep -q "source.*task.bash" "{{.SHELL_RC}}" || echo "source {{.COMPLETION_DIR}}/task.bash" >> "{{.SHELL_RC}}"
+        
+        # Kubectl completion
+        kubectl completion bash > "{{.COMPLETION_DIR}}/kubectl.bash"
+        grep -q "source.*kubectl.bash" "{{.SHELL_RC}}" || echo "source {{.COMPLETION_DIR}}/kubectl.bash" >> "{{.SHELL_RC}}"
+        grep -q "alias k=kubectl" "{{.SHELL_RC}}" || echo "alias k=kubectl" >> "{{.SHELL_RC}}"
+        grep -q "complete -o default -F __start_kubectl k" "{{.SHELL_RC}}" || echo "complete -o default -F __start_kubectl k" >> "{{.SHELL_RC}}"
+        
+        # Helm completion
+        helm completion bash > "{{.COMPLETION_DIR}}/helm.bash"
+        grep -q "source.*helm.bash" "{{.SHELL_RC}}" || echo "source {{.COMPLETION_DIR}}/helm.bash" >> "{{.SHELL_RC}}"
+        
+        # Kind completion
+        kind completion bash > "{{.COMPLETION_DIR}}/kind.bash"
+        grep -q "source.*kind.bash" "{{.SHELL_RC}}" || echo "source {{.COMPLETION_DIR}}/kind.bash" >> "{{.SHELL_RC}}"
+        
+        # Helmfile completion
+        helmfile completion bash > "{{.COMPLETION_DIR}}/helmfile.bash"
+        grep -q "source.*helmfile.bash" "{{.SHELL_RC}}" || echo "source {{.COMPLETION_DIR}}/helmfile.bash" >> "{{.SHELL_RC}}"
+        
+        # Kustomize completion
+        kustomize completion bash > "{{.COMPLETION_DIR}}/kustomize.bash"
+        grep -q "source.*kustomize.bash" "{{.SHELL_RC}}" || echo "source {{.COMPLETION_DIR}}/kustomize.bash" >> "{{.SHELL_RC}}"
+        
+        # YQ completion
+        yq shell-completion bash > "{{.COMPLETION_DIR}}/yq.bash"
+        grep -q "source.*yq.bash" "{{.SHELL_RC}}" || echo "source {{.COMPLETION_DIR}}/yq.bash" >> "{{.SHELL_RC}}"
+
+  setup-completions-zsh:
+    desc: "Configure tools completions for the zsh shell"
+    silent: true
+    vars:
+      COMPLETION_DIR: "$HOME/.local/share/zsh/site-functions"
+      SHELL_RC: "$HOME/.zshrc"
+    status:
+      - test -d "{{.COMPLETION_DIR}}"
+      - test -f "{{.COMPLETION_DIR}}/_task"
+      - test -f "{{.COMPLETION_DIR}}/_kubectl"
+      - test -f "{{.COMPLETION_DIR}}/_helm"
+      - test -f "{{.COMPLETION_DIR}}/_kind"
+      - test -f "{{.COMPLETION_DIR}}/_helmfile"
+      - test -f "{{.COMPLETION_DIR}}/_kustomize"
+      - test -f "{{.COMPLETION_DIR}}/_yq"
+    cmds:
+      - |
+        mkdir -p "{{.COMPLETION_DIR}}"
+        
+        # Task completion
+        task --completion zsh > "{{.COMPLETION_DIR}}/_task"
+        
+        # Kubectl completion
+        kubectl completion zsh > "{{.COMPLETION_DIR}}/_kubectl"
+        grep -q "alias k=kubectl" "{{.SHELL_RC}}" || echo "alias k=kubectl" >> "{{.SHELL_RC}}"
+        grep -q "compdef k=kubectl" "{{.SHELL_RC}}" || echo "compdef k=kubectl" >> "{{.SHELL_RC}}"
+        
+        # Helm completion
+        helm completion zsh > "{{.COMPLETION_DIR}}/_helm"
+        
+        # Kind completion
+        kind completion zsh > "{{.COMPLETION_DIR}}/_kind"
+        
+        # Helmfile completion
+        helmfile completion zsh > "{{.COMPLETION_DIR}}/_helmfile"
+        
+        # Kustomize completion
+        kustomize completion zsh > "{{.COMPLETION_DIR}}/_kustomize"
+        
+        # YQ completion
+        yq shell-completion zsh > "{{.COMPLETION_DIR}}/_yq"
+
+  setup-completions-fish:
+    desc: "Configure tools completions for the fish shell"
+    silent: true
+    vars:
+      COMPLETION_DIR: "$HOME/.config/fish/completions"
+    status:
+      - test -d "{{.COMPLETION_DIR}}"
+      - test -f "{{.COMPLETION_DIR}}/task.fish"
+      - test -f "{{.COMPLETION_DIR}}/kubectl.fish"
+      - test -f "{{.COMPLETION_DIR}}/helm.fish"
+      - test -f "{{.COMPLETION_DIR}}/kind.fish"
+      - test -f "{{.COMPLETION_DIR}}/helmfile.fish"
+      - test -f "{{.COMPLETION_DIR}}/kustomize.fish"
+      - test -f "{{.COMPLETION_DIR}}/yq.fish"
+    cmds:
+      - |
+        mkdir -p "{{.COMPLETION_DIR}}"
+        
+        # Task completion
+        task --completion fish > "{{.COMPLETION_DIR}}/task.fish"
+        
+        # Kubectl completion
+        kubectl completion fish > "{{.COMPLETION_DIR}}/kubectl.fish"
+        mkdir -p "$HOME/.config/fish/conf.d"
+        echo "alias k=kubectl" > "$HOME/.config/fish/conf.d/kubectl.fish"
+        echo "complete -c k -w kubectl" >> "$HOME/.config/fish/conf.d/kubectl.fish"
+        
+        # Helm completion
+        helm completion fish > "{{.COMPLETION_DIR}}/helm.fish"
+        
+        # Kind completion
+        kind completion fish > "{{.COMPLETION_DIR}}/kind.fish"
+        
+        # Helmfile completion
+        helmfile completion fish > "{{.COMPLETION_DIR}}/helmfile.fish"
+        
+        # Kustomize completion
+        kustomize completion fish > "{{.COMPLETION_DIR}}/kustomize.fish"
+        
+        # YQ completion
+        yq shell-completion fish > "{{.COMPLETION_DIR}}/yq.fish"

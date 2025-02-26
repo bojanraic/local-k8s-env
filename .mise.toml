@@ -15,6 +15,9 @@ task = "3.41.0"
 # renovate: datasource=github-releases depName=mikefarah/yq
 yq = "v4.45.1"
 
+# renovate: datasource=github-releases depName=jqlang/jq
+jq = "1.7.1"
+
 # renovate: datasource=github-releases depName=kubernetes-sigs/kind
 kind = "0.27.0"
 
@@ -35,7 +38,6 @@ kubeconform = "0.6.7"
 
 # renovate: datasource=github-releases depName=FiloSottile/mkcert
 mkcert = "1.4.4"
-
 
 [tasks.deps]
 description = "Install Python dependencies"

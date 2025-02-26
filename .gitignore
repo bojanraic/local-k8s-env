@@ -11,3 +11,4 @@
 kubeconfig
 tests/registry/*values*.y?ml
 demo.cast
+k8s-env.yaml

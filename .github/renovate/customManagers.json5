@@ -14,7 +14,7 @@
     {
       "customType": "regex",
       "fileMatch": [
-        "k8s-env\\.yaml$"
+        "k8s-env\\.yaml(?:\\.example)?$"
       ],
       "matchStrings": [
         "\\s*chart:\\s*(?:.*?/)?(?<package>[^/\\s]+)\\s*#.*\\n\\s*#\\s*renovate:\\s*datasource=(?<datasource>[^\\s]+)\\s+depName=(?<depName>[^\\s]+)[^\\n]*\\n\\s*version:\\s*(?<currentValue>\\S+).*"
@@ -25,7 +25,7 @@
     {
       "customType": "regex",
       "fileMatch": [
-        "k8s-env\\.yaml$"
+        "k8s-env\\.yaml(?:\\.example)?$"
       ],
       "matchStrings": [
         "# renovate:\\s*datasource=docker\\s+depName=(?<depName>[^\\s]+)\\s+versioning=docker\\s*\\n\\s*tag:\\s*(?<currentValue>\\S+)"
@@ -36,7 +36,7 @@
     {
       "customType": "regex",
       "fileMatch": [
-        "k8s-env\\.yaml$"
+        "k8s-env\\.yaml(?:\\.example)?$"
       ],
       "matchStrings": [
         "(?sm)# renovate:\\s*datasource=(?<datasource>\\S+)\\s+depName=(?<depName>\\S+)(?:\\s+repoUrl=\\S+)?(?:\\s+versioning=\\S+)?\\s*\\n\\s*-\\s*(?<key>[^:]+):\\s*\\\"(?<currentValue>[^\\\"]+)\\\""

@@ -22,7 +22,7 @@ environment:
     workers: 1 # number of worker nodes
     allow-scheduling-on-control-plane: true # whether to allow scheduling on control plane nodes even when workers exist
 
-  local-ip: 192.168.1.100 # local ip, mapping to the host IP to use for DNS resolution and wildcard certificates
+  local-ip: 192.168.0.10 # local ip, mapping to the host IP to use for DNS resolution and wildcard certificates
   local-domain: dev.me # a domain name to use for custom dns resolution and wildcard certificates 
   local-lb-ports: # list of ports to expose on the load balancer side, mapping to the host machine
     - 80 # http port for nginx ingress controller

@@ -17,6 +17,7 @@ A robust and flexible local Kubernetes development environment setup using KinD,
 - 🛠️ Helm-based service deployment
 - ⚙️ Configurable via single YAML file
 - 🔄 Automated dependency management with Renovate
+- 💻 Shell completions for all applicable tools
 
 ## Demo
 
@@ -33,7 +34,7 @@ The following are required:
 
 NOTES: 
 - Podman is not supported yet as it is not a first-class citizen with KinD 
-- Ubuntu 24.04 and Pop!_OS 24.04 are tested and known to work, although distros with a standard systemd might work as well
+- Ubuntu 22.04, 24.04 and Pop!_OS 24.04 are tested and known to work, although distros with a standard systemd/systemd-resolved setup might work as well
 
 All other dependencies are automatically managed by mise:
 - 🐍 Python
@@ -70,13 +71,19 @@ curl https://mise.run | sh
 mise trust
 mise doctor
 ```
-5. Install tools, create Python virtual environment and install dependencies
+
+5. Install tools, create Python virtual environment and install dependencies:
 ```bash
 mise install
 mise run deps
 ```
 
-6. Configure your environment by editing `k8s-env.yaml`:
+6. Copy the example configuration:
+```bash
+cp k8s-env.yaml.example k8s-env.yaml
+```
+
+7. Configure your environment by editing `k8s-env.yaml`:
 ```yaml
 environment:
   name: my-local-env
@@ -84,14 +91,67 @@ environment:
   local-domain: me.local # Change if desired
 ```
 
-1. Create the environment:
+8. Create the environment:
 ```bash
 task create-env
 ```
 
-1. Verify the setup:
+9. Verify the setup:
 ```bash
 task validate-env
+```
+
+## Shell Completions
+
+The environment automatically sets up shell completions for mise-managed tools. This includes:
+
+- task
+- kubectl (including the 'k' alias)
+- helm
+- helmfile
+- kind
+- kustomize
+- yq
+
+To re-run completions setup for your shell manually: 
+```bash
+task help:setup-completions
+```
+or for a specific shell: 
+```bash
+task help:setup-completions:bash
+task help:setup-completions:zsh
+task help:setup-completions:fish
+```
+
+After restarting your shell, you should be able to use tab to complete commands using the tools mentioned above.
+
+## Help and Information
+
+The environment includes comprehensive help tasks. To see available information:
+
+```bash
+# List all help tasks
+task help
+
+# Show environment information
+task help:environment
+
+# Sample output:
+🌍 Environment Configuration:
+├── Name: my-local-env
+├── Base Directory: /home/user/.local/k8s-env
+├── Local Domain: me.local
+├── Local IP: 192.168.1.123
+├── Container Runtime: docker
+├── Nodes:
+│   ├── Control Plane: 1
+│   ├── Workers: 1
+│   └── Control Plane Scheduling: true
+└── Service Presets Enabled: true
+
+# Show all information
+task help:all
 ```
 
 ## Project Structure

@@ -8,9 +8,23 @@ includes:
   help: .taskfiles/help
 
 tasks:
+  ensure-basic-tools:
+    desc: Ensure basic tools are installed
+    internal: true
+    silent: true
+    cmds:
+      - |
+        echo "🔄 Ensuring basic tools are installed..."
+        mise install task yq
+        mise use task yq
+    status:
+      - command -v task >/dev/null 2>&1
+      - command -v yq >/dev/null 2>&1
+
   check-deps:
     desc: Check and install required dependencies
     silent: true
+    deps: [ensure-basic-tools]
     cmds:
       - echo "🔄 Checking dependencies..."
       - echo "  ⚙️ Installing mise tools..."
@@ -18,6 +32,11 @@ tasks:
       - echo "  ⚙️ Installing Python dependencies..."
       - mise run deps
       - echo "✅ All dependencies installed"
+      - echo "  ⚙️ Configuring shell completions..."
+      - task: help:setup-completions
+      - echo "  👉 Please restart your shell or source your shell rc file to enable completions"
+      - echo "  ✅ Done configuring shell completions"
+      - echo "✅ Done checking dependencies"
     status:
       - test -f {{.VENV}}/pyvenv.cfg
 
@@ -124,7 +143,12 @@ tasks:
       - |
         echo "nameserver {{.LOCAL_IP}}" | sudo tee {{.RESOLVER_FILE}} > /dev/null
         echo "port {{.DNS_PORT}}" | sudo tee -a {{.RESOLVER_FILE}} > /dev/null
-      - sudo chown root:wheel {{.RESOLVER_FILE}}
+      - |
+        if [[ "$(echo {{.OS}} | tr '[:upper]' '[:lower:]')" == "darwin" ]]; then
+          sudo chown root:wheel {{.RESOLVER_FILE}}
+        else
+          sudo chown root:root {{.RESOLVER_FILE}}
+        fi
       - sudo chmod 644 {{.RESOLVER_FILE}}
       - echo "✅ Dnsmasq setup complete"
     status:
@@ -180,20 +204,20 @@ tasks:
           echo "❌ Failed to get DNS container IP"
           exit 1
         fi
-        
+
         # Get all cluster nodes (excluding DNS and load balancer containers)
         DNS_ID=$({{.RUNTIME_BINARY}} ps -q --filter "name={{.DNS_CONTAINER_NAME}}")
         NODES=$({{.RUNTIME_BINARY}} ps -q --filter "name={{.CLUSTER_NAME}}")
-        
+
         # Remove DNS container from nodes list
         NODES=$(echo "$NODES" | grep -v "$DNS_ID")
-        
+
         # Remove load balancer if it exists
         LB_ID=$({{.RUNTIME_BINARY}} ps -q --filter "name={{.KIND_LB_CONTAINER_NAME}}")
         if [ -n "$LB_ID" ]; then
           NODES=$(echo "$NODES" | grep -v "$LB_ID")
         fi
-        
+
         for NODE in $NODES; do
           NODE_NAME=$({{.RUNTIME_BINARY}} inspect $NODE --format='{{`{{.Name}}`}}' | sed 's/\///')
           echo "  📝 Updating DNS for node: $NODE_NAME"
@@ -229,19 +253,19 @@ tasks:
         # Check if all containers are already stopped
         CONTAINERS=$({{.RUNTIME_BINARY}} ps -a --filter "name={{.CLUSTER_NAME}}" --format '{{`{{.Names}}`}}' | sort -u)
         ALL_STOPPED=true
-        
+
         for CONTAINER in $CONTAINERS; do
           if {{.RUNTIME_BINARY}} ps --filter "name=$CONTAINER" --filter "status=running" -q | grep -q .; then
             ALL_STOPPED=false
             break
           fi
         done
-        
+
         if [ "$ALL_STOPPED" = "true" ]; then
           echo "ℹ️ Cluster '{{.CLUSTER_NAME}}' is already stopped"
           exit 0
         fi
-        
+
         echo "  🔄 Stopping all '{{.CLUSTER_NAME}}'-related containers..."
         for CONTAINER in $CONTAINERS; do
           echo "    ⏳ Stopping $CONTAINER..."
@@ -261,19 +285,19 @@ tasks:
         # Check if all containers are already running
         CONTAINERS=$({{.RUNTIME_BINARY}} ps -a --filter "name={{.CLUSTER_NAME}}" --format '{{`{{.Names}}`}}' | sort -u)
         ALL_RUNNING=true
-        
+
         for CONTAINER in $CONTAINERS; do
           if ! {{.RUNTIME_BINARY}} ps --filter "name=$CONTAINER" --filter "status=running" -q | grep -q .; then
             ALL_RUNNING=false
             break
           fi
         done
-        
+
         if [ "$ALL_RUNNING" = "true" ]; then
           echo "ℹ️ Cluster '{{.CLUSTER_NAME}}' is already running"
           exit 0
         fi
-        
+
         echo "  🔄 Starting all '{{.CLUSTER_NAME}}'-related containers..."
         for CONTAINER in $CONTAINERS; do
           echo "    ⏳ Starting $CONTAINER..."
