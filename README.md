@@ -115,16 +115,21 @@ The environment automatically sets up shell completions for mise-managed tools. 
 
 To re-run completions setup for your shell manually:
 ```bash
-task help:setup-completions
+task setup-completions
 ```
 or for a specific shell:
 ```bash
-task help:setup-completions:bash
-task help:setup-completions:zsh
-task help:setup-completions:fish
+task utils:setup-completions-bash
+task utils:setup-completions-zsh
+task utils:setup-completions-fish
 ```
 
 After restarting your shell, you should be able to use tab to complete commands using the tools mentioned above.
+
+If you wish to remove these shell completions, run 
+```bash
+task utils:remove-completions
+```
 
 ## Help and Information
 
