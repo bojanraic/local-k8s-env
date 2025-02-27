@@ -1,0 +1,232 @@
+version: "3"
+
+vars:
+  BASH_COMPLETION_DIR: "$HOME/.bash_completion.d"
+  ZSH_COMPLETION_DIR: "$HOME/.local/share/zsh/site-functions"
+  FISH_COMPLETION_DIR: "$HOME/.config/fish/completions"
+  FISH_CONF_DIR: "$HOME/.config/fish/conf.d"
+  BASH_RC: "$HOME/.bashrc"
+  ZSH_RC: "$HOME/.zshrc"
+  COMPLETION_START: "### BEGIN k8s-env completions ###"
+  COMPLETION_END: "### END k8s-env completions ###"
+
+tasks:
+  setup-completions-bash:
+    desc: "Configure tools completions for the bash shell"
+    silent: true
+    cmds:
+      - echo "🔄 Setting up bash completions..."
+      - |
+        if ! grep -q "{{.COMPLETION_START}}" "{{.BASH_RC}}"; then
+          echo "" >> "{{.BASH_RC}}"
+          echo "{{.COMPLETION_START}}" >> "{{.BASH_RC}}"
+          echo "# Bash completion system setup" >> "{{.BASH_RC}}"
+          echo "if [ -f /etc/bash_completion ]; then" >> "{{.BASH_RC}}"
+          echo "  source /etc/bash_completion" >> "{{.BASH_RC}}"
+          echo "fi" >> "{{.BASH_RC}}"
+          echo "" >> "{{.BASH_RC}}"
+          echo "# Tool completions with command existence checks" >> "{{.BASH_RC}}"
+          echo "# kubectl" >> "{{.BASH_RC}}"
+          echo "if command -v kubectl &>/dev/null; then" >> "{{.BASH_RC}}"
+          echo "  source <(kubectl completion bash)" >> "{{.BASH_RC}}"
+          echo "  alias k=kubectl" >> "{{.BASH_RC}}"
+          echo "  complete -F __start_kubectl k" >> "{{.BASH_RC}}"
+          echo "fi" >> "{{.BASH_RC}}"
+          echo "" >> "{{.BASH_RC}}"
+          echo "# task" >> "{{.BASH_RC}}"
+          echo "if command -v task &>/dev/null; then" >> "{{.BASH_RC}}"
+          echo "  source <(task --completion bash)" >> "{{.BASH_RC}}"
+          echo "fi" >> "{{.BASH_RC}}"
+          echo "" >> "{{.BASH_RC}}"
+          echo "# helm" >> "{{.BASH_RC}}"
+          echo "if command -v helm &>/dev/null; then" >> "{{.BASH_RC}}"
+          echo "  source <(helm completion bash)" >> "{{.BASH_RC}}"
+          echo "fi" >> "{{.BASH_RC}}"
+          echo "" >> "{{.BASH_RC}}"
+          echo "# kind" >> "{{.BASH_RC}}"
+          echo "if command -v kind &>/dev/null; then" >> "{{.BASH_RC}}"
+          echo "  source <(kind completion bash)" >> "{{.BASH_RC}}"
+          echo "fi" >> "{{.BASH_RC}}"
+          echo "" >> "{{.BASH_RC}}"
+          echo "# helmfile" >> "{{.BASH_RC}}"
+          echo "if command -v helmfile &>/dev/null; then" >> "{{.BASH_RC}}"
+          echo "  source <(helmfile completion bash)" >> "{{.BASH_RC}}"
+          echo "fi" >> "{{.BASH_RC}}"
+          echo "" >> "{{.BASH_RC}}"
+          echo "# kustomize" >> "{{.BASH_RC}}"
+          echo "if command -v kustomize &>/dev/null; then" >> "{{.BASH_RC}}"
+          echo "  source <(kustomize completion bash)" >> "{{.BASH_RC}}"
+          echo "fi" >> "{{.BASH_RC}}"
+          echo "" >> "{{.BASH_RC}}"
+          echo "# yq" >> "{{.BASH_RC}}"
+          echo "if command -v yq &>/dev/null; then" >> "{{.BASH_RC}}"
+          echo "  source <(yq shell-completion bash)" >> "{{.BASH_RC}}"
+          echo "fi" >> "{{.BASH_RC}}"
+          echo "{{.COMPLETION_END}}" >> "{{.BASH_RC}}"
+        fi
+      - echo "✅ Bash completions configured"
+      - echo "👉 Please restart your shell or run 'source ~/.bashrc' to enable completions"
+
+  setup-completions-zsh:
+    desc: "Configure tools completions for the zsh shell"
+    silent: true
+    status:
+      - test -d "{{.ZSH_COMPLETION_DIR}}"
+    cmds:
+      - mkdir -p "{{.ZSH_COMPLETION_DIR}}"
+      - |
+        if ! grep -q "{{.COMPLETION_START}}" "{{.ZSH_RC}}"; then
+          echo "" >> "{{.ZSH_RC}}"
+          echo "{{.COMPLETION_START}}" >> "{{.ZSH_RC}}"
+          echo "# ZSH completion system setup" >> "{{.ZSH_RC}}"
+          echo "autoload -Uz compinit" >> "{{.ZSH_RC}}"
+          echo "compinit" >> "{{.ZSH_RC}}"
+          echo "" >> "{{.ZSH_RC}}"
+          echo "# Tool completions with command existence checks" >> "{{.ZSH_RC}}"
+          echo "# kubectl" >> "{{.ZSH_RC}}"
+          echo "if command -v kubectl &>/dev/null; then" >> "{{.ZSH_RC}}"
+          echo "  source <(kubectl completion zsh)" >> "{{.ZSH_RC}}"
+          echo "  alias k=kubectl" >> "{{.ZSH_RC}}"
+          echo "  source <(kubectl completion zsh | sed 's/kubectl/k/g')" >> "{{.ZSH_RC}}"
+          echo "fi" >> "{{.ZSH_RC}}"
+          echo "" >> "{{.ZSH_RC}}"
+          echo "# task" >> "{{.ZSH_RC}}"
+          echo "if command -v task &>/dev/null; then" >> "{{.ZSH_RC}}"
+          echo "  source <(task --completion zsh)" >> "{{.ZSH_RC}}"
+          echo "fi" >> "{{.ZSH_RC}}"
+          echo "" >> "{{.ZSH_RC}}"
+          echo "# helm" >> "{{.ZSH_RC}}"
+          echo "if command -v helm &>/dev/null; then" >> "{{.ZSH_RC}}"
+          echo "  source <(helm completion zsh)" >> "{{.ZSH_RC}}"
+          echo "fi" >> "{{.ZSH_RC}}"
+          echo "" >> "{{.ZSH_RC}}"
+          echo "# kind" >> "{{.ZSH_RC}}"
+          echo "if command -v kind &>/dev/null; then" >> "{{.ZSH_RC}}"
+          echo "  source <(kind completion zsh)" >> "{{.ZSH_RC}}"
+          echo "fi" >> "{{.ZSH_RC}}"
+          echo "" >> "{{.ZSH_RC}}"
+          echo "# helmfile" >> "{{.ZSH_RC}}"
+          echo "if command -v helmfile &>/dev/null; then" >> "{{.ZSH_RC}}"
+          echo "  source <(helmfile completion zsh)" >> "{{.ZSH_RC}}"
+          echo "fi" >> "{{.ZSH_RC}}"
+          echo "" >> "{{.ZSH_RC}}"
+          echo "# kustomize" >> "{{.ZSH_RC}}"
+          echo "if command -v kustomize &>/dev/null; then" >> "{{.ZSH_RC}}"
+          echo "  source <(kustomize completion zsh)" >> "{{.ZSH_RC}}"
+          echo "fi" >> "{{.ZSH_RC}}"
+          echo "" >> "{{.ZSH_RC}}"
+          echo "# yq" >> "{{.ZSH_RC}}"
+          echo "if command -v yq &>/dev/null; then" >> "{{.ZSH_RC}}"
+          echo "  source <(yq shell-completion zsh)" >> "{{.ZSH_RC}}"
+          echo "fi" >> "{{.ZSH_RC}}"
+          echo "{{.COMPLETION_END}}" >> "{{.ZSH_RC}}"
+        fi
+
+  setup-completions-fish:
+    desc: "Configure tools completions for the fish shell"
+    silent: true
+    status:
+      - test -d "{{.FISH_COMPLETION_DIR}}"
+    cmds:
+      - mkdir -p "{{.FISH_COMPLETION_DIR}}"
+      - mkdir -p "{{.FISH_CONF_DIR}}"
+      - |
+        if [ ! -f "{{.FISH_CONF_DIR}}/k8s-env-completions.fish" ]; then
+          echo "{{.COMPLETION_START}}" > "{{.FISH_CONF_DIR}}/k8s-env-completions.fish"
+          echo "# Tool completions with command existence checks" >> "{{.FISH_CONF_DIR}}/k8s-env-completions.fish"
+          echo "" >> "{{.FISH_CONF_DIR}}/k8s-env-completions.fish"
+          echo "# kubectl" >> "{{.FISH_CONF_DIR}}/k8s-env-completions.fish"
+          echo "if command -v kubectl >/dev/null 2>&1" >> "{{.FISH_CONF_DIR}}/k8s-env-completions.fish"
+          echo "  kubectl completion fish | source" >> "{{.FISH_CONF_DIR}}/k8s-env-completions.fish"
+          echo "  alias k=kubectl" >> "{{.FISH_CONF_DIR}}/k8s-env-completions.fish"
+          echo "  complete -c k -w kubectl" >> "{{.FISH_CONF_DIR}}/k8s-env-completions.fish"
+          echo "end" >> "{{.FISH_CONF_DIR}}/k8s-env-completions.fish"
+          echo "" >> "{{.FISH_CONF_DIR}}/k8s-env-completions.fish"
+          echo "# task" >> "{{.FISH_CONF_DIR}}/k8s-env-completions.fish"
+          echo "if command -v task >/dev/null 2>&1" >> "{{.FISH_CONF_DIR}}/k8s-env-completions.fish"
+          echo "  task --completion fish | source" >> "{{.FISH_CONF_DIR}}/k8s-env-completions.fish"
+          echo "end" >> "{{.FISH_CONF_DIR}}/k8s-env-completions.fish"
+          echo "" >> "{{.FISH_CONF_DIR}}/k8s-env-completions.fish"
+          echo "# helm" >> "{{.FISH_CONF_DIR}}/k8s-env-completions.fish"
+          echo "if command -v helm >/dev/null 2>&1" >> "{{.FISH_CONF_DIR}}/k8s-env-completions.fish"
+          echo "  helm completion fish | source" >> "{{.FISH_CONF_DIR}}/k8s-env-completions.fish"
+          echo "end" >> "{{.FISH_CONF_DIR}}/k8s-env-completions.fish"
+          echo "" >> "{{.FISH_CONF_DIR}}/k8s-env-completions.fish"
+          echo "# kind" >> "{{.FISH_CONF_DIR}}/k8s-env-completions.fish"
+          echo "if command -v kind >/dev/null 2>&1" >> "{{.FISH_CONF_DIR}}/k8s-env-completions.fish"
+          echo "  kind completion fish | source" >> "{{.FISH_CONF_DIR}}/k8s-env-completions.fish"
+          echo "end" >> "{{.FISH_CONF_DIR}}/k8s-env-completions.fish"
+          echo "" >> "{{.FISH_CONF_DIR}}/k8s-env-completions.fish"
+          echo "# helmfile" >> "{{.FISH_CONF_DIR}}/k8s-env-completions.fish"
+          echo "if command -v helmfile >/dev/null 2>&1" >> "{{.FISH_CONF_DIR}}/k8s-env-completions.fish"
+          echo "  helmfile completion fish | source" >> "{{.FISH_CONF_DIR}}/k8s-env-completions.fish"
+          echo "end" >> "{{.FISH_CONF_DIR}}/k8s-env-completions.fish"
+          echo "" >> "{{.FISH_CONF_DIR}}/k8s-env-completions.fish"
+          echo "# kustomize" >> "{{.FISH_CONF_DIR}}/k8s-env-completions.fish"
+          echo "if command -v kustomize >/dev/null 2>&1" >> "{{.FISH_CONF_DIR}}/k8s-env-completions.fish"
+          echo "  kustomize completion fish | source" >> "{{.FISH_CONF_DIR}}/k8s-env-completions.fish"
+          echo "end" >> "{{.FISH_CONF_DIR}}/k8s-env-completions.fish"
+          echo "" >> "{{.FISH_CONF_DIR}}/k8s-env-completions.fish"
+          echo "# yq" >> "{{.FISH_CONF_DIR}}/k8s-env-completions.fish"
+          echo "if command -v yq >/dev/null 2>&1" >> "{{.FISH_CONF_DIR}}/k8s-env-completions.fish"
+          echo "  yq shell-completion fish | source" >> "{{.FISH_CONF_DIR}}/k8s-env-completions.fish"
+          echo "end" >> "{{.FISH_CONF_DIR}}/k8s-env-completions.fish"
+          echo "{{.COMPLETION_END}}" >> "{{.FISH_CONF_DIR}}/k8s-env-completions.fish"
+        fi
+
+  remove-completions:
+    desc: "Remove shell completions configuration"
+    silent: true
+    cmds:
+      - echo "🔄 Removing shell completions..."
+      - |
+        # Remove bash completions
+        if [ -f "{{.BASH_RC}}" ]; then
+          sed -i.bak "/{{.COMPLETION_START}}/,/{{.COMPLETION_END}}/d" "{{.BASH_RC}}"
+          rm -f "{{.BASH_RC}}.bak"
+        fi
+        # Remove old bash completion files if they exist
+        if [ -d "$HOME/.bash_completion.d" ]; then
+          echo "Removing bash completion files..."
+          rm -f "$HOME/.bash_completion.d/task.bash"
+          rm -f "$HOME/.bash_completion.d/kubectl.bash"
+          rm -f "$HOME/.bash_completion.d/helm.bash"
+          rm -f "$HOME/.bash_completion.d/kind.bash"
+          rm -f "$HOME/.bash_completion.d/helmfile.bash"
+          rm -f "$HOME/.bash_completion.d/kustomize.bash"
+          rm -f "$HOME/.bash_completion.d/yq.bash"
+        fi
+      - |
+        # Remove zsh completions
+        if [ -f "{{.ZSH_RC}}" ]; then
+          sed -i.bak "/{{.COMPLETION_START}}/,/{{.COMPLETION_END}}/d" "{{.ZSH_RC}}"
+          rm -f "{{.ZSH_RC}}.bak"
+        fi
+        if [ -d "{{.ZSH_COMPLETION_DIR}}" ]; then
+          rm -f "{{.ZSH_COMPLETION_DIR}}/_task"
+          rm -f "{{.ZSH_COMPLETION_DIR}}/_kubectl"
+          rm -f "{{.ZSH_COMPLETION_DIR}}/_helm"
+          rm -f "{{.ZSH_COMPLETION_DIR}}/_kind"
+          rm -f "{{.ZSH_COMPLETION_DIR}}/_helmfile"
+          rm -f "{{.ZSH_COMPLETION_DIR}}/_kustomize"
+          rm -f "{{.ZSH_COMPLETION_DIR}}/_yq"
+        fi
+      - |
+        # Remove fish completions
+        if [ -f "{{.FISH_CONF_DIR}}/k8s-env-completions.fish" ]; then
+          rm -f "{{.FISH_CONF_DIR}}/k8s-env-completions.fish"
+        fi
+        if [ -f "{{.FISH_CONF_DIR}}/kubectl.fish" ]; then
+          sed -i.bak "/{{.COMPLETION_START}}/,/{{.COMPLETION_END}}/d" "{{.FISH_CONF_DIR}}/kubectl.fish"
+          rm -f "{{.FISH_CONF_DIR}}/kubectl.fish.bak"
+        fi
+        if [ -d "{{.FISH_COMPLETION_DIR}}" ]; then
+          rm -f "{{.FISH_COMPLETION_DIR}}/task.fish"
+          rm -f "{{.FISH_COMPLETION_DIR}}/kubectl.fish"
+          rm -f "{{.FISH_COMPLETION_DIR}}/helm.fish"
+          rm -f "{{.FISH_COMPLETION_DIR}}/kind.fish"
+          rm -f "{{.FISH_COMPLETION_DIR}}/helmfile.fish"
+          rm -f "{{.FISH_COMPLETION_DIR}}/kustomize.fish"
+          rm -f "{{.FISH_COMPLETION_DIR}}/yq.fish"
+        fi
+      - echo "✅ Shell completions removed"
