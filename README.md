@@ -13,7 +13,7 @@ A robust and flexible local Kubernetes development environment setup using KinD,
   - MySQL
   - MongoDB
   - RabbitMQ
-  - Dragonfly (Redis-compatible)
+  - Valkey (Redis-compatible)
 - 🛠️ Helm-based service deployment
 - ⚙️ Configurable via single YAML file
 - 🔄 Automated dependency management with Renovate
@@ -273,6 +273,7 @@ The `service_presets.yaml` file defines default configurations for supported ser
 service_ports:
   mysql: 3306
   postgres: 5432
+  valkey: 6379
   # ... other service ports
 
 service_values_presets:

@@ -105,10 +105,6 @@ def prepare_context(config):
                     'requests': service['storage']['size']
                 }
         
-        # Always apply auth presets for security
-        if service_name in service_auth_presets:
-            base_values.update(service_auth_presets[service_name])
-        
         # Merge custom values from config if they exist
         custom_values = service.get('config', {}).get('values', {})
         if custom_values:

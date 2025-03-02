@@ -105,8 +105,52 @@ tasks:
           # Get list of enabled services first
           ENABLED_SERVICES=($(yq e '.environment.services[] | select(.enabled == true) | .name' {{.CONFIG_FILE}}))
           
+          # Check if there are any enabled services
+          if [ ${#ENABLED_SERVICES[@]} -eq 0 ]; then
+            echo "ℹ️ No enabled services found. No secrets to fetch."
+            exit 0
+          fi
+          
+          # Check if any enabled services are password-protected
+          HAS_PROTECTED_SERVICES=false
+          for SERVICE in "${ENABLED_SERVICES[@]}"; do
+            IS_PROTECTED=$(yq e ".service_auth_presets.$SERVICE.password-protected" {{.ROOT_DIR}}/templates/service_presets.yaml)
+            if [ "$IS_PROTECTED" = "true" ]; then
+              HAS_PROTECTED_SERVICES=true
+              break
+            fi
+          done
+          
+          if [ "$HAS_PROTECTED_SERVICES" = "false" ]; then
+            echo "ℹ️ No password-protected services found among enabled services. No secrets to fetch."
+            exit 0
+          fi
+          
           OUTPUT_FILE="{{.K8S_DIR}}/service-secrets.txt"
           > $OUTPUT_FILE  # Clear the file before writing
+
+          # Get all helm releases and their namespaces
+          echo "  🔍 Getting Helm release information..."
+          declare -A SERVICE_NAMESPACES
+          
+          # Get releases in a simple format first
+          HELM_OUTPUT=$(helm list --all-namespaces --kubeconfig {{.KUBECONFIG_PATH}})
+          if [ $? -ne 0 ]; then
+            echo "❌ Failed to get Helm releases"
+            exit 1
+          fi
+          
+          # Skip the header line and process each release
+          echo "$HELM_OUTPUT" | while read -r line; do
+            if [[ $line != NAME* ]]; then  # Skip header line
+              name=$(echo "$line" | awk '{print $1}')
+              namespace=$(echo "$line" | awk '{print $2}')
+              if [ -n "$name" ] && [ -n "$namespace" ]; then
+                SERVICE_NAMESPACES[$name]=$namespace
+                echo "    Found release: $name in namespace: $namespace"
+              fi
+            fi
+          done
 
           for SERVICE in "${ENABLED_SERVICES[@]}"; do
             # Check if service is password-protected in presets
@@ -115,8 +159,13 @@ tasks:
               # Get secret name and field from presets
               SECRET_NAME=$(yq e ".service_auth_presets.$SERVICE.secret-name" {{.ROOT_DIR}}/templates/service_presets.yaml)
               PASSWORD_FIELD=$(yq e ".service_auth_presets.$SERVICE.password-field" {{.ROOT_DIR}}/templates/service_presets.yaml)
-              PASSWORD=$(kubectl get secret $SECRET_NAME -n $SERVICE -o jsonpath="{.data.$PASSWORD_FIELD}" | base64 --decode)
-              echo "Service $SERVICE, Password: $PASSWORD" >> $OUTPUT_FILE
+              
+              # Use the actual namespace from Helm release, fallback to service name if not found
+              NAMESPACE=${SERVICE_NAMESPACES[$SERVICE]:-$SERVICE}
+              echo "  📦 Fetching secret for $SERVICE from namespace $NAMESPACE..."
+              
+              PASSWORD=$(kubectl get secret $SECRET_NAME -n $NAMESPACE -o jsonpath="{.data.$PASSWORD_FIELD}" | base64 --decode)
+              echo "Service $SERVICE (namespace: $NAMESPACE), Password: $PASSWORD" >> $OUTPUT_FILE
             fi
           done
 
@@ -124,13 +173,15 @@ tasks:
             echo "🔑 Passwords for enabled password-protected services have been written to $OUTPUT_FILE"
             echo "🔑 Service secrets:"
             cat $OUTPUT_FILE
+            echo "✅ Service secrets fetched successfully"
+          else
+            echo "⚠️ Failed to fetch any service secrets. Check if secrets exist in the cluster."
           fi
         else
-          echo "ℹ️  Service presets are disabled (use-service-presets: false)"
+          echo "ℹ️ Service presets are disabled (use-service-presets: false)"
           echo "👉 You are responsible for managing service secrets."
           echo "   Refer to each service's helm chart documentation for configuration"
         fi
-      - echo "✅ Service secrets fetched successfully"
 
   create-cluster:
     desc: Create a new {{.PROVIDER}} cluster

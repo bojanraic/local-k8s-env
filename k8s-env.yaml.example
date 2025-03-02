@@ -47,6 +47,7 @@ environment:
   services: # additional services to deploy within the cluster 
     - name: mysql
       enabled: false # whether or not to install this component and expose the port(s)
+      namespace: common-services
       ports:
         - 3306 # port to expose on the host machine
       storage: # use PVC for storage
@@ -61,6 +62,7 @@ environment:
 
     - name: postgres
       enabled: true # whether or not to install this component and expose the port(s)
+      namespace: common-services
       ports:
         - 5432
       storage: # use PVC for storage
@@ -72,6 +74,7 @@ environment:
 
     - name: mongodb
       enabled: false # whether or not to install this component and expose the port(s)
+      namespace: common-services
       ports:
         - 27017 # port to expose on the host machine
       storage: # use PVC for storage
@@ -83,6 +86,7 @@ environment:
 
     - name: rabbitmq
       enabled: false # whether or not to install this component and expose the port(s)
+      namespace: common-services
       ports:
         - 5672 # port to expose on the host machine
       storage: # use PVC for storage
@@ -91,17 +95,18 @@ environment:
         chart: bitnami/rabbitmq # the chart to use
         # renovate: datasource=helm depName=rabbitmq
         version: 15.3.3
-
-    - name: dragonfly
+        values: 
+          ingress:
+            enabled: true
+            hostname: rmq.dev.me
+    - name: valkey
       enabled: false # whether or not to install this component and expose the port(s)
+      namespace: common-services
       ports:
-        - 6379
+        - 6379 # port to expose on the host machine
       storage:
         size: 1Gi
       config:
-        chart: oci://ghcr.io/dragonflydb/dragonfly/helm/dragonfly # the chart to use
-        # renovate: datasource=docker depName=dragonflydb/dragonfly
-        version: v1.27.1
-        values: # additional values to use for the chart
-          image:
-            repository: ghcr.io/dragonflydb/dragonfly # the image to use
+        chart: bitnami/valkey # the chart to use
+        # renovate: datasource=helm depName=valkey
+        version: 2.4.1

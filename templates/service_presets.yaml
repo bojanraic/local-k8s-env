@@ -5,7 +5,7 @@ service_ports:
   postgres: 5432
   mongodb: 27017
   rabbitmq: 5672
-  dragonfly: 6379
+  valkey: 6379
 
 # Default secrets settings for services; 
 # based on default behavior of helm charts
@@ -30,8 +30,10 @@ service_auth_presets:
     password-protected: true
     secret-name: rabbitmq
     password-field: rabbitmq-password
-  dragonfly:
-    password-protected: false
+  valkey:
+    password-protected: true
+    secret-name: valkey
+    password-field: valkey-password
 
 # Default values for services;
 # used to configure helm charts
@@ -59,11 +61,15 @@ service_values_presets:
     persistence:
       enabled: true
   
-  dragonfly:
-    fullNameOverride: dragonfly
-    nameOverride: dragonfly
-    storage:
-      enabled: true
+  valkey:
+    fullNameOverride: valkey
+    nameOverride: valkey
+    architecture: standalone
+    primary:
+      persistence:
+        enabled: true
+    replica:
+      replicaCount: 0
   
   rabbitmq:
     fullNameOverride: rabbitmq

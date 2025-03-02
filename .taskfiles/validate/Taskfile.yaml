@@ -121,6 +121,12 @@ tasks:
     silent: true
     cmds:
       - |
+        echo "🔍 Checking for enabled TCP services..."
+        if [ $(yq e '.environment.services[] | select(.enabled == true) | .name' {{.CONFIG_FILE}} | wc -l) -eq 0 ]; then
+          echo "ℹ️  No TCP services are enabled. Skipping external validation."
+          exit 0
+        fi
+        
         echo "🔍 Validating enabled TCP services from the local machine:"
         FAILED=0
         ENABLED_SERVICES=($(yq e '.environment.services[] | select(.enabled == true) | .name' {{.CONFIG_FILE}}))
@@ -147,8 +153,14 @@ tasks:
     desc: "Validate TCP services are reachable from inside the cluster"
     silent: true
     cmds:
-      - echo "🔍 Validating enabled TCP services from inside the cluster:"
       - |
+        echo "🔍 Checking for enabled TCP services..."
+        if [ $(yq e '.environment.services[] | select(.enabled == true) | .name' {{.CONFIG_FILE}} | wc -l) -eq 0 ]; then
+          echo "ℹ️  No TCP services are enabled. Skipping internal validation."
+          exit 0
+        fi
+        
+        echo "🔍 Validating enabled TCP services from inside the cluster:"
         # Create temporary pod for testing
         cat << EOF | kubectl apply -f -
         apiVersion: v1
@@ -159,7 +171,7 @@ tasks:
         spec:
           containers:
           - name: netcat
-            image: busybox:1.36
+            image: busybox
             command: ["sleep", "300"]
           restartPolicy: Never
         EOF
