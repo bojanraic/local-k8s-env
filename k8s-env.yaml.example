@@ -34,6 +34,8 @@ environment:
       size: 15Gi # size of PVC  
 
   internal-components:
+    # renovate: datasource=helm depName=cert-manager repoUrl=https://charts.jetstack.io versioning=helm
+    - cert-manager: "v1.17.1"
     # renovate: datasource=helm depName=app-template repoUrl=https://bjw-s.github.io/helm-charts/ versioning=helm
     - app-template: "3.7.1"
     # renovate: datasource=helm depName=ingress-nginx repoUrl=https://kubernetes.github.io/ingress-nginx versioning=helm
@@ -54,7 +56,7 @@ environment:
         size: 10Gi # size of PVC
       config:
         chart: bitnami/mysql # the chart to use
-        # renovate: datasource=helm depName=mysql
+        # renovate: datasource=helm depName=mysql repoUrl=https://charts.bitnami.com/bitnami versioning=helm
         version: 12.3.0
         values: # additional values to use for the chart
           auth:
@@ -69,7 +71,7 @@ environment:
         size: 5Gi
       config:
         chart: bitnami/postgresql # the chart to use
-        # renovate: datasource=helm depName=postgresql
+        # renovate: datasource=helm depName=postgresql repoUrl=https://charts.bitnami.com/bitnami versioning=helm
         version: 16.4.14
 
     - name: mongodb
@@ -81,7 +83,7 @@ environment:
         size: 5Gi # size of PVC
       config:
         chart: bitnami/mongodb # the chart to use
-        # renovate: datasource=helm depName=mongodb
+        # renovate: datasource=helm depName=mongodb repoUrl=https://charts.bitnami.com/bitnami versioning=helm
         version: 16.4.5
 
     - name: rabbitmq
@@ -93,12 +95,18 @@ environment:
         size: 2Gi # size of PVC
       config:
         chart: bitnami/rabbitmq # the chart to use
-        # renovate: datasource=helm depName=rabbitmq
+        # renovate: datasource=helm depName=rabbitmq repoUrl=https://charts.bitnami.com/bitnami versioning=helm
         version: 15.3.3
         values: 
           ingress:
             enabled: true
             hostname: rmq.dev.me
+            annotations:
+              cert-manager.io/cluster-issuer: "mkcert-issuer"
+              nginx.ingress.kubernetes.io/ssl-redirect: "true"
+              nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
+            tls: true
+
     - name: valkey
       enabled: false # whether or not to install this component and expose the port(s)
       namespace: common-services
@@ -108,5 +116,5 @@ environment:
         size: 1Gi
       config:
         chart: bitnami/valkey # the chart to use
-        # renovate: datasource=helm depName=valkey
+        # renovate: datasource=helm depName=valkey repoUrl=https://charts.bitnami.com/bitnami versioning=helm
         version: 2.4.1

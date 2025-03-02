@@ -17,10 +17,11 @@
         "k8s-env\\.yaml(?:\\.example)?$"
       ],
       "matchStrings": [
-        "\\s*chart:\\s*(?:.*?/)?(?<package>[^/\\s]+)\\s*#.*\\n\\s*#\\s*renovate:\\s*datasource=(?<datasource>[^\\s]+)\\s+depName=(?<depName>[^\\s]+)[^\\n]*\\n\\s*version:\\s*(?<currentValue>\\S+).*"
+        "\\s*chart:\\s*(?:.*?/)?(?<package>[^/\\s]+)\\s*#.*\\n\\s*#\\s*renovate:\\s*datasource=(?<datasource>[^\\s]+)\\s+depName=(?<depName>[^\\s]+)\\s+repoUrl=(?<repoUrl>[^\\s]+)\\s+versioning=(?<versioning>[^\\s]+)\\s*\\n\\s*version:\\s*(?<currentValue>\\S+).*"
       ],
       "datasourceTemplate": "{{datasource}}",
-      "packageNameTemplate": "{{depName}}"
+      "packageNameTemplate": "{{depName}}",
+      "registryUrlTemplate": "{{repoUrl}}"
     },
     {
       "customType": "regex",

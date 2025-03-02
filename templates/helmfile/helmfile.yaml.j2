@@ -5,6 +5,8 @@ repositories:
     url: https://charts.bitnami.com/bitnami
   - name: bjw-s
     url: https://bjw-s.github.io/helm-charts/
+  - name: jetstack
+    url: https://charts.jetstack.io
 
 helmDefaults:
   createNamespace: true
@@ -13,11 +15,28 @@ helmDefaults:
   timeout: 900
 
 releases:
+  # cert-manager
+  - name: cert-manager
+    chart: jetstack/cert-manager
+    namespace: cert-manager
+    version: {{ cert_manager_version }}
+    values:
+      - installCRDs: true
+        global:
+          leaderElection:
+            namespace: cert-manager
+        prometheus:
+          enabled: false
+        webhook:
+          timeoutSeconds: 30
+
   # Ingress NGINX Controller
   - name: ingress-nginx
     chart: ingress-nginx/ingress-nginx
     namespace: ingress-nginx
     version: {{ nginx_ingress_version }}
+    needs:
+      - cert-manager/cert-manager
     values:
       - controller:
           hostPort:
@@ -44,7 +63,6 @@ releases:
             default: true
           extraArgs:
             publish-status-address: {{ local_ip }}
-            default-ssl-certificate: kube-system/wildcard-tls
             election-id: ingress-nginx-leader
             controller-class: k8s.io/ingress-nginx
             ingress-class: nginx
@@ -91,6 +109,7 @@ releases:
           app:
             className: nginx
             annotations:
+              cert-manager.io/cluster-issuer: "mkcert-issuer"
               nginx.ingress.kubernetes.io/ssl-redirect: "true"
               nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
               kubernetes.io/ingress.allow-http: "false"
@@ -103,7 +122,8 @@ releases:
                       identifier: app
                       port: http
             tls:
-              - hosts:
+              - secretName: registry-tls
+                hosts:
                   - {{ registry_name }}.{{ local_domain }}
         persistence:
           data:

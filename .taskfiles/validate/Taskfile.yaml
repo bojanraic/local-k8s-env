@@ -1,6 +1,11 @@
 # yaml-language-server: $schema=https://taskfile.dev/schema.json
 version: "3"
 
+vars:
+  CR_TEST_IMAGE_TAG:
+    sh: |
+      cd {{.ROOT_DIR}}/tests/registry && cat ep.sh Dockerfile | sha256sum | cut -c1-8
+
 tasks:
   default: task --list --taskfile "{{.ROOT_DIR}}/.taskfiles/validate/Taskfile.yaml"
 
@@ -60,6 +65,12 @@ tasks:
           main:
             enabled: true
             className: nginx
+            annotations:
+              cert-manager.io/cluster-issuer: "mkcert-issuer"
+              nginx.ingress.kubernetes.io/ssl-redirect: "true"
+              nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
+              cert-manager.io/duration: "72h"
+              cert-manager.io/renew-before: "36h"
             hosts:
               - host: {{.REGISTRY_NAME}}-test.{{.LOCAL_DOMAIN}}
                 paths:
@@ -69,7 +80,8 @@ tasks:
                       identifier: main
                       port: http
             tls:
-              - hosts:
+              - secretName: {{.REGISTRY_NAME}}-test-tls
+                hosts:
                   - {{.REGISTRY_NAME}}-test.{{.LOCAL_DOMAIN}}
         EOF
         )
@@ -93,16 +105,11 @@ tasks:
 
   local-registry:
     desc: "Validates local registry by building and pushing an image, then deploying a Helm release using that image"
-    vars:
-      IMAGE_TAG:
-        sh: |
-          # Create hash from both files
-          cat {{.REG_TEST_DIR}}/ep.sh {{.REG_TEST_DIR}}/Dockerfile | sha256sum | cut -c1-8
     cmds:
       - task: build-push-image
-        vars: { IMAGE_TAG: '{{.IMAGE_TAG}}' }
+        vars: { IMAGE_TAG: '{{.CR_TEST_IMAGE_TAG}}' }
       - task: deploy-test-app
-        vars: { IMAGE_TAG: '{{.IMAGE_TAG}}' }
+        vars: { IMAGE_TAG: '{{.CR_TEST_IMAGE_TAG}}' }
 
   app:
     desc: Validates sample app deployed via Helm release from local registry

@@ -35,29 +35,77 @@ tasks:
     status:
       - test -f {{.KUBECONFIG_PATH}} && grep -q {{.CLUSTER_NAME}} {{.KUBECONFIG_PATH}}
 
-  create-wildcard-cert:
-    desc: Create a wildcard certificate for the local domain and deploy it to the cluster
+  setup-cert-manager:
+    desc: Deploy cert-manager and configure ClusterIssuer with mkcert CA
     silent: true
     cmds:
-      - echo "🔄 Creating wildcard TLS certificate..."
+      - echo "🔄 Setting up cert-manager..."
       - |
-        kubectl --kubeconfig {{.KUBECONFIG_PATH}} create secret tls wildcard-tls \
-          --cert={{.K8S_DIR}}/certs/{{.LOCAL_DOMAIN}}.pem \
-          --key={{.K8S_DIR}}/certs/{{.LOCAL_DOMAIN}}-key.pem \
-          -n kube-system
-      - echo "✅ Wildcard TLS certificate created"
+        echo "  📦 Installing/upgrading cert-manager..."
+        helmfile --file {{.K8S_DIR}}/config/helmfile.yaml \
+          --selector name=cert-manager \
+          apply --kubeconfig {{.KUBECONFIG_PATH}} --skip-diff-on-install --suppress-diff
+      - |
+        # Wait for cert-manager pods to be ready before setting up the issuer
+        echo "⏳ Waiting for cert-manager webhook..."
+        kubectl --kubeconfig {{.KUBECONFIG_PATH}} wait --namespace cert-manager \
+          --for=condition=ready pod \
+          --selector=app.kubernetes.io/component=webhook \
+          --timeout=90s || {
+            echo "❌ Timeout waiting for cert-manager webhook"
+            exit 1
+          }
+        sleep 5  # Give cert-manager a moment to establish its CRDs
+
+        # Create namespace if it doesn't exist
+        kubectl --kubeconfig {{.KUBECONFIG_PATH}} create namespace cert-manager --dry-run=client -o yaml | \
+          kubectl --kubeconfig {{.KUBECONFIG_PATH}} apply -f -
+
+        # Create or update CA secret
+        echo "📦 Creating/updating mkcert CA secret..."
+        kubectl --kubeconfig {{.KUBECONFIG_PATH}} create secret generic mkcert-ca-secret \
+          --namespace cert-manager \
+          --from-file=tls.crt={{.K8S_DIR}}/certs/rootCA.pem \
+          --from-file=tls.key={{.K8S_DIR}}/certs/rootCA-key.pem \
+          --dry-run=client -o yaml | \
+          kubectl --kubeconfig {{.KUBECONFIG_PATH}} apply -f -
+
+        # Apply the ClusterIssuer
+        echo "🔧 Creating/updating ClusterIssuer..."
+        kubectl --kubeconfig {{.KUBECONFIG_PATH}} apply -f {{.K8S_DIR}}/config/cluster-issuer.yaml
+
+        # Verify ClusterIssuer is ready
+        echo "⏳ Waiting for ClusterIssuer to be ready..."
+        for i in $(seq 1 30); do
+          if kubectl --kubeconfig {{.KUBECONFIG_PATH}} get clusterissuer mkcert-issuer -o jsonpath='{.status.conditions[?(@.type=="Ready")].status}' | grep -q "True"; then
+            echo "✅ ClusterIssuer is ready"
+            break
+          fi
+          if [ $i -eq 30 ]; then
+            echo "❌ Timeout waiting for ClusterIssuer to be ready"
+            exit 1
+          fi
+          sleep 2
+        done
+      - echo "✅ cert-manager setup complete"
     status:
-      - kubectl --kubeconfig {{.KUBECONFIG_PATH}} get secret wildcard-tls -n kube-system
+      - |
+        kubectl --kubeconfig {{.KUBECONFIG_PATH}} get secret mkcert-ca-secret -n cert-manager >/dev/null 2>&1 && \
+        kubectl --kubeconfig {{.KUBECONFIG_PATH}} get clusterissuer mkcert-issuer >/dev/null 2>&1 && \
+        kubectl --kubeconfig {{.KUBECONFIG_PATH}} get clusterissuer mkcert-issuer -o jsonpath='{.status.conditions[?(@.type=="Ready")].status}' | grep -q "True"
 
   deploy-services:
-    desc: Deploy core services using helmfile
+    desc: Deploy remaining services using helmfile
     silent: true
+    deps: [setup-cert-manager]
     cmds:
-      - echo "🔄 Deploying core services..."
+      - echo "🔄 Deploying services..."
       - |
         echo "  📦 Installing/upgrading Helm charts for enabled services..."
-        helmfile --file {{.K8S_DIR}}/config/helmfile.yaml apply --kubeconfig {{.KUBECONFIG_PATH}} --skip-diff-on-install --suppress-diff
-      - echo "✅ Core services deployed successfully"
+        helmfile --file {{.K8S_DIR}}/config/helmfile.yaml \
+          --selector 'name!=cert-manager' \
+          apply --kubeconfig {{.KUBECONFIG_PATH}} --skip-diff-on-install --suppress-diff
+      - echo "✅ Services deployed successfully"
     status:
       - helmfile --file {{.K8S_DIR}}/config/helmfile.yaml status --kubeconfig {{.KUBECONFIG_PATH}}
 
@@ -131,24 +179,15 @@ tasks:
 
           # Get all helm releases and their namespaces
           echo "  🔍 Getting Helm release information..."
+          
+          # Get namespaces for each service using kubectl
           declare -A SERVICE_NAMESPACES
-          
-          # Get releases in a simple format first
-          HELM_OUTPUT=$(helm list --all-namespaces --kubeconfig {{.KUBECONFIG_PATH}})
-          if [ $? -ne 0 ]; then
-            echo "❌ Failed to get Helm releases"
-            exit 1
-          fi
-          
-          # Skip the header line and process each release
-          echo "$HELM_OUTPUT" | while read -r line; do
-            if [[ $line != NAME* ]]; then  # Skip header line
-              name=$(echo "$line" | awk '{print $1}')
-              namespace=$(echo "$line" | awk '{print $2}')
-              if [ -n "$name" ] && [ -n "$namespace" ]; then
-                SERVICE_NAMESPACES[$name]=$namespace
-                echo "    Found release: $name in namespace: $namespace"
-              fi
+          for SERVICE in "${ENABLED_SERVICES[@]}"; do
+            # Try to find the service's namespace using kubectl
+            NAMESPACE=$(kubectl --kubeconfig {{.KUBECONFIG_PATH}} get pods --all-namespaces -l "app.kubernetes.io/name=$SERVICE" -o jsonpath='{.items[0].metadata.namespace}' 2>/dev/null)
+            if [ -n "$NAMESPACE" ]; then
+              SERVICE_NAMESPACES[$SERVICE]=$NAMESPACE
+              echo "    Found service: $SERVICE in namespace: $NAMESPACE"
             fi
           done
 
@@ -160,12 +199,20 @@ tasks:
               SECRET_NAME=$(yq e ".service_auth_presets.$SERVICE.secret-name" {{.ROOT_DIR}}/templates/service_presets.yaml)
               PASSWORD_FIELD=$(yq e ".service_auth_presets.$SERVICE.password-field" {{.ROOT_DIR}}/templates/service_presets.yaml)
               
-              # Use the actual namespace from Helm release, fallback to service name if not found
-              NAMESPACE=${SERVICE_NAMESPACES[$SERVICE]:-$SERVICE}
+              # Use the actual namespace from Helm release
+              NAMESPACE="${SERVICE_NAMESPACES[$SERVICE]}"
+              if [ -z "$NAMESPACE" ]; then
+                echo "⚠️ Could not find namespace for service $SERVICE, skipping..."
+                continue
+              fi
               echo "  📦 Fetching secret for $SERVICE from namespace $NAMESPACE..."
               
               PASSWORD=$(kubectl get secret $SECRET_NAME -n $NAMESPACE -o jsonpath="{.data.$PASSWORD_FIELD}" | base64 --decode)
-              echo "Service $SERVICE (namespace: $NAMESPACE), Password: $PASSWORD" >> $OUTPUT_FILE
+              if [ -n "$PASSWORD" ]; then
+                echo "Service $SERVICE (namespace: $NAMESPACE), Password: $PASSWORD" >> $OUTPUT_FILE
+              else
+                echo "⚠️ Could not fetch password for service $SERVICE"
+              fi
             fi
           done
 

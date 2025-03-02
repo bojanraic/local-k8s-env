@@ -119,7 +119,11 @@ tasks:
           echo "  🔐 Generating certificates using mkcert..."
           mkcert -cert-file {{.CERT_FILE}} -key-file {{.KEY_FILE}} "*.{{.LOCAL_DOMAIN}}" "{{.LOCAL_DOMAIN}}"
         fi
-      - cp "$(mkcert -CAROOT)/rootCA.pem" {{.CERT_DIR}}/rootCA.pem
+      - |
+        CAROOT=$(mkcert -CAROOT)
+        cp "$CAROOT/rootCA.pem" {{.CERT_DIR}}/rootCA.pem
+        cp "$CAROOT/rootCA-key.pem" {{.CERT_DIR}}/rootCA-key.pem
+        chmod 600 {{.CERT_DIR}}/rootCA-key.pem
       - cat {{.CERT_FILE}} {{.KEY_FILE}} > {{.COMBINED_FILE}}
       - |
         echo "  📁 Setting up containerd registry certificates..."
@@ -129,6 +133,7 @@ tasks:
     status:
       - test -f "{{.ROOT_CA_PATH}}/rootCA.pem"
       - test -f {{.CERT_DIR}}/rootCA.pem
+      - test -f {{.CERT_DIR}}/rootCA-key.pem
       - test -f {{.CERT_FILE}}
       - test -f {{.KEY_FILE}}
       - test -f {{.COMBINED_FILE}}
@@ -145,7 +150,8 @@ tasks:
         echo "nameserver {{.LOCAL_IP}}" | sudo tee {{.RESOLVER_FILE}} > /dev/null
         echo "port {{.DNS_PORT}}" | sudo tee -a {{.RESOLVER_FILE}} > /dev/null
       - |
-        if [[ "$(echo {{.OS}} | tr '[:upper]' '[:lower:]')" == "darwin" ]]; then
+        OS_TYPE="$(echo {{.OS}} | tr '[:upper:]' '[:lower:]')"
+        if [ "$OS_TYPE" = "darwin" ]; then
           sudo chown root:wheel {{.RESOLVER_FILE}}
         else
           sudo chown root:root {{.RESOLVER_FILE}}
@@ -240,7 +246,7 @@ tasks:
       - task: kubernetes:set-control-plane-scheduling
       - task: kubernetes:label-worker-nodes
       - task: kubernetes:list-nodes
-      - task: kubernetes:create-wildcard-cert
+      - task: kubernetes:setup-cert-manager
       - task: kubernetes:deploy-services
       - task: kubernetes:fetch-service-secrets
 
@@ -420,3 +426,4 @@ tasks:
       - task: utils:remove-completions
 
   default: task --list
+

@@ -108,7 +108,10 @@ def prepare_context(config):
         # Merge custom values from config if they exist
         custom_values = service.get('config', {}).get('values', {})
         if custom_values:
+            # Store custom values separately to ensure they override base values
             service['custom_values'] = custom_values
+            # Also update base_values with custom values to ensure they take precedence
+            base_values.update(custom_values)
         
         # Store base values
         service['base_values'] = base_values
@@ -151,6 +154,7 @@ def prepare_context(config):
         'registry_version': get_internal_component(env, 'registry'),
         'app_template_version': get_internal_component(env, 'app-template'),
         'nginx_ingress_version': get_internal_component(env, 'nginx-ingress'),
+        'cert_manager_version': get_internal_component(env, 'cert-manager'),
         'dnsmasq_version': get_internal_component(env, 'dnsmasq'),
         'service_ports': service_ports,
         'service_values_presets': service_values_presets,
@@ -255,47 +259,41 @@ def generate_resolver_file(config, os_name):
         print(f"⚠️  Resolver file generation not implemented for {os_name}")
 
 def generate_configs(config_file, os_name):
-    print("📝 Generating configurations from", config_file)
+    """Generate all configuration files"""
     config = load_config(config_file)
     context = prepare_context(config)
     
-    # Create output directories
-    base_dir = config['environment']['base-dir']
-    if config['environment']['expand-base-dir-vars']:
-        base_dir = os.path.expandvars(base_dir)
-    
-    env_name = config['environment']['name']
-    config_dir = f"{base_dir}/{env_name}/config"
+    # Create config directory
+    k8s_dir = context['k8s_dir']
+    config_dir = f"{k8s_dir}/config"
     os.makedirs(config_dir, exist_ok=True)
     
-    provider_name = config['environment']['provider']['name']
+    # Generate cluster config
+    cluster_config = render_template('kind/cluster.yaml.j2', context)
+    with open(f"{config_dir}/cluster.yaml", 'w') as f:
+        f.write(cluster_config)
     
-    # Define templates based on provider
-    base_templates = {
-        'helmfile/helmfile.yaml.j2': 'helmfile.yaml',
-        'containerd/config.yaml.j2': 'containerd.yaml',
-        'dnsmasq/config.conf.j2': 'dnsmasq.conf'
-    }
+    # Generate containerd config
+    containerd_config = render_template('containerd/config.yaml.j2', context)
+    with open(f"{config_dir}/containerd.yaml", 'w') as f:
+        f.write(containerd_config)
     
-    # Add provider-specific cluster template
-    base_templates['kind/cluster.yaml.j2'] = 'cluster.yaml'
+    # Generate dnsmasq config
+    dnsmasq_config = render_template('dnsmasq/config.conf.j2', context)
+    with open(f"{config_dir}/dnsmasq.conf", 'w') as f:
+        f.write(dnsmasq_config)
     
-    templates = base_templates
+    # Generate helmfile config
+    helmfile_config = render_template('helmfile/helmfile.yaml.j2', context)
+    with open(f"{config_dir}/helmfile.yaml", 'w') as f:
+        f.write(helmfile_config)
     
-    # Generate each configuration file
-    for template_path, output_name in templates.items():
-        print(f"📝 Generating {output_name}")
-        content = render_template(template_path, context)
-        output_path = f"{config_dir}/{output_name}"
-        
-        with open(output_path, 'w') as f:
-            f.write(content)
-        print(f"✅ Created {output_path}")
+    # Generate cert-manager cluster-issuer config
+    cluster_issuer_config = render_template('cert-manager/cluster-issuer.yaml.j2', context)
+    with open(f"{config_dir}/cluster-issuer.yaml", 'w') as f:
+        f.write(cluster_issuer_config)
     
-    # Generate resolver file based on OS
-    generate_resolver_file(config, os_name)
-    
-    print("✨ Configuration generation complete!")
+    print("✅ Configuration files generated successfully")
 
 if __name__ == "__main__":
     if len(sys.argv) != 3:
