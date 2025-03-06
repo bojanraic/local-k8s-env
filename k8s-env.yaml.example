@@ -117,4 +117,4 @@ environment:
       config:
         chart: bitnami/valkey # the chart to use
         # renovate: datasource=helm depName=valkey repoUrl=https://charts.bitnami.com/bitnami versioning=helm
-        version: 2.4.1
+        version: 2.4.4
