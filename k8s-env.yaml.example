@@ -57,7 +57,7 @@ environment:
       config:
         chart: bitnami/mysql # the chart to use
         # renovate: datasource=helm depName=mysql repoUrl=https://charts.bitnami.com/bitnami versioning=helm
-        version: 12.3.0
+        version: 12.3.1
         values: # additional values to use for the chart
           auth:
             createDatabase: false # whether or not to create a database
