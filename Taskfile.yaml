@@ -5,7 +5,7 @@ includes:
   vars: .taskfiles/vars
   kubernetes: .taskfiles/kubernetes
   validate: .taskfiles/validate
-  help: .taskfiles/help
+  status: .taskfiles/status
   utils: .taskfiles/utils
 
 tasks:
@@ -34,7 +34,7 @@ tasks:
       - mise run deps
       - echo "✅ All dependencies installed"
       - echo "  ⚙️ Configuring shell completions..."
-      - task: help:setup-completions
+      - task: utils:setup-completions
       - echo "  👉 Please restart your shell or source your shell rc file to enable completions"
       - echo "  ✅ Done configuring shell completions"
       - echo "✅ Done checking dependencies"
@@ -424,6 +424,85 @@ tasks:
     silent: true
     cmds:
       - task: utils:remove-completions
-
+  
+  status:
+    desc: Show basic status information about the cluster and services
+    silent: true
+    cmds:
+      - echo "🔍 Checking cluster status..."
+      - |
+        # Check if cluster exists
+        if ! {{.PROVIDER_BINARY}} get clusters 2>/dev/null | grep -q "{{.CLUSTER_NAME}}"; then
+          echo "❌ Cluster '{{.CLUSTER_NAME}}' does not exist"
+          exit 1
+        fi
+        
+        # Check if kubeconfig exists
+        if [ ! -f "{{.KUBECONFIG_PATH}}" ]; then
+          echo "❌ Kubeconfig not found at {{.KUBECONFIG_PATH}}"
+          exit 1
+        fi
+        
+        # Check if cluster is accessible
+        if ! kubectl --kubeconfig {{.KUBECONFIG_PATH}} cluster-info >/dev/null 2>&1; then
+          echo "❌ Cluster is not accessible. Containers may be stopped."
+          echo "👉 Try running 'task start-env' to start the cluster"
+          exit 1
+        fi
+        
+        echo "✅ Cluster '{{.CLUSTER_NAME}}' is running"
+        
+        # Show node status - using a more reliable approach
+        echo -e "\n📊 Node Status:"
+        kubectl --kubeconfig {{.KUBECONFIG_PATH}} get nodes --no-headers 2>/dev/null | awk '{print "├── " $1 "\t" $2 "\t" "Roles: " $3 "\t" "Age: " $4}' || echo "├── No nodes found"
+        
+        # Show namespace status
+        echo -e "\n📊 Namespace Status:"
+        kubectl --kubeconfig {{.KUBECONFIG_PATH}} get namespaces -o custom-columns=NAME:.metadata.name,STATUS:.status.phase,AGE:.metadata.creationTimestamp | sed '1!s/^/├── /'
+        
+        # Show cert-manager status
+        echo -e "\n📊 cert-manager Status:"
+        if kubectl --kubeconfig {{.KUBECONFIG_PATH}} get namespace cert-manager >/dev/null 2>&1; then
+          kubectl --kubeconfig {{.KUBECONFIG_PATH}} get pods -n cert-manager --no-headers 2>/dev/null | awk '{print "├── " $1 "\t" $3 "/" $2 "\t" "Restarts: " $4 "\t" "Age: " $5}' || echo "├── No pods found"
+        else
+          echo "├── cert-manager not installed"
+        fi
+        
+        # Show ingress-nginx status
+        echo -e "\n📊 ingress-nginx Status:"
+        if kubectl --kubeconfig {{.KUBECONFIG_PATH}} get namespace ingress-nginx >/dev/null 2>&1; then
+          kubectl --kubeconfig {{.KUBECONFIG_PATH}} get pods -n ingress-nginx --no-headers 2>/dev/null | awk '{print "├── " $1 "\t" $3 "/" $2 "\t" "Restarts: " $4 "\t" "Age: " $5}' || echo "├── No pods found"
+        else
+          echo "├── ingress-nginx not installed"
+        fi
+        
+        # Show enabled services status
+        echo -e "\n📊 Enabled Services Status:"
+        ENABLED_SERVICES=($(yq e '.environment.services[] | select(.enabled == true) | .name' {{.CONFIG_FILE}} 2>/dev/null || echo ""))
+        if [ ${#ENABLED_SERVICES[@]} -gt 0 ]; then
+          for SERVICE in "${ENABLED_SERVICES[@]}"; do
+            NAMESPACE=$(yq e ".environment.services[] | select(.name == \"$SERVICE\") | .namespace // .name" {{.CONFIG_FILE}})
+            echo "├── Service: $SERVICE (namespace: $NAMESPACE)"
+            if kubectl --kubeconfig {{.KUBECONFIG_PATH}} get namespace $NAMESPACE >/dev/null 2>&1; then
+              kubectl --kubeconfig {{.KUBECONFIG_PATH}} get pods -n $NAMESPACE --no-headers 2>/dev/null | awk '{print "│   ├── " $1 "\t" $3 "/" $2 "\t" "Restarts: " $4 "\t" "Age: " $5}' || echo "│   ├── No pods found"
+              
+              # Show service endpoints
+              echo "│   └── Endpoints:"
+              kubectl --kubeconfig {{.KUBECONFIG_PATH}} get service -n $NAMESPACE --no-headers 2>/dev/null | awk '{print "│       ├── " $1 "\t" "Type: " $2 "\t" "Cluster-IP: " $3 "\t" "Ports: " $5}' || echo "│       ├── No services found"
+            else
+              echo "│   └── Namespace not found"
+            fi
+          done
+        else
+          echo "├── No enabled services found"
+        fi
+        
+        # Show DNS status
+        echo -e "\n📊 DNS Status:"
+        DNS_STATUS=$({{.RUNTIME_BINARY}} ps --filter name={{.DNS_CONTAINER_NAME}} --format '{{`{{.Status}}`}}' || echo "Not running")
+        echo "└── {{.DNS_CONTAINER_NAME}}: $DNS_STATUS"
+        
+        echo -e "\n✅ Status check complete"
+  
   default: task --list
 

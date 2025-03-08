@@ -2,7 +2,7 @@
 version: "3"
 
 tasks:
-  default: task --list --taskfile "{{.ROOT_DIR}}/.taskfiles/help/Taskfile.yaml"
+  default: task --list --taskfile "{{.ROOT_DIR}}/.taskfiles/status/Taskfile.yaml"
 
   cluster-info:
     desc: "Show basic info about the kubernetes cluster"
@@ -83,19 +83,51 @@ tasks:
         echo "🔐 Certificate Information:"
         echo "├── CA Path: {{.ROOT_CA_PATH}}"
         echo "├── Certificates Directory: {{.K8S_DIR}}/certs"
-        if [ -f "{{.K8S_DIR}}/certs/{{.LOCAL_DOMAIN}}.pem" ]; then
-          echo "├── Domain Certificate:"
-          openssl x509 -in {{.K8S_DIR}}/certs/{{.LOCAL_DOMAIN}}.pem -noout -subject -issuer -dates | sed 's/^/│   ├── /'
+        
+        # Check for root CA certificate
+        if [ -f "{{.K8S_DIR}}/certs/rootCA.pem" ]; then
+          echo "├── Root CA Certificate:"
+          openssl x509 -in {{.K8S_DIR}}/certs/rootCA.pem -noout -subject -issuer -dates | sed 's/^/│   ├── /'
         fi
-        echo "└── Wildcard TLS Secret Status:"
+        
+        # Check for domain certificates
+        if [ -f "{{.K8S_DIR}}/certs/dev.me.pem" ]; then
+          echo "├── Domain Certificate:"
+          openssl x509 -in {{.K8S_DIR}}/certs/dev.me.pem -noout -subject -issuer -dates | sed 's/^/│   ├── /'
+        fi
+        
+        echo "└── cert-manager Status:"
         if {{.PROVIDER_BINARY}} get clusters 2>/dev/null | grep -q "{{.CLUSTER_NAME}}" && test -f {{.KUBECONFIG_PATH}}; then
-          if kubectl --kubeconfig {{.KUBECONFIG_PATH}} get secret wildcard-tls -n kube-system >/dev/null 2>&1; then
-            SECRET=$(kubectl --kubeconfig {{.KUBECONFIG_PATH}} get secret wildcard-tls -n kube-system -o json)
-            echo "    ├── Name: $(echo "$SECRET" | jq -r '.metadata.name')"
-            echo "    ├── Namespace: $(echo "$SECRET" | jq -r '.metadata.namespace')"
-            echo "    └── Age: $(echo "$SECRET" | jq -r '.metadata.creationTimestamp')"
+          # Check if cert-manager is installed
+          if kubectl --kubeconfig {{.KUBECONFIG_PATH}} get namespace cert-manager >/dev/null 2>&1; then
+            echo "    ├── cert-manager Namespace: Found"
+            
+            # Check cert-manager pods
+            echo "    ├── cert-manager Pods:"
+            kubectl --kubeconfig {{.KUBECONFIG_PATH}} get pods -n cert-manager -o custom-columns=NAME:.metadata.name,STATUS:.status.phase,AGE:.metadata.creationTimestamp | tail -n +2 | sed 's/^/    │   ├── /'
+            
+            # Check ClusterIssuers
+            echo "    ├── ClusterIssuers:"
+            kubectl --kubeconfig {{.KUBECONFIG_PATH}} get clusterissuers -o custom-columns=NAME:.metadata.name,READY:.status.conditions[0].status,AGE:.metadata.creationTimestamp | tail -n +2 | sed 's/^/    │   ├── /'
+            
+            # Check for service TLS secrets
+            echo "    └── Service TLS Secrets:"
+            ENABLED_SERVICES=($(yq e '.environment.services[] | select(.enabled == true) | .name' {{.CONFIG_FILE}} 2>/dev/null || echo ""))
+            if [ ${#ENABLED_SERVICES[@]} -gt 0 ]; then
+              for SERVICE in "${ENABLED_SERVICES[@]}"; do
+                NAMESPACE=$(yq e ".environment.services[] | select(.name == \"$SERVICE\") | .namespace // .name" {{.CONFIG_FILE}})
+                if kubectl --kubeconfig {{.KUBECONFIG_PATH}} get secret $SERVICE-tls -n $NAMESPACE >/dev/null 2>&1; then
+                  SECRET_AGE=$(kubectl --kubeconfig {{.KUBECONFIG_PATH}} get secret $SERVICE-tls -n $NAMESPACE -o jsonpath='{.metadata.creationTimestamp}')
+                  echo "        ├── $SERVICE-tls (namespace: $NAMESPACE, created: $SECRET_AGE)"
+                else
+                  echo "        ├── $SERVICE-tls (namespace: $NAMESPACE): Not found"
+                fi
+              done
+            else
+              echo "        └── No enabled services found"
+            fi
           else
-            echo "    └── Not found"
+            echo "    └── cert-manager not installed"
           fi
         else
           echo "    └── Cluster not available"
