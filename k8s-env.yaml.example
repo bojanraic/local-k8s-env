@@ -43,7 +43,7 @@ environment:
     # renovate: datasource=docker depName=registry versioning=docker
     - registry: "2"
     # renovate: datasource=docker depName=dockurr/dnsmasq versioning=docker
-    - dnsmasq: "2.90"
+    - dnsmasq: "2.91"
 
   use-service-presets: true # whether or not to use the preset values for services; leave true unless you have a good reason to override the defaults
   services: # additional services to deploy within the cluster 
