@@ -364,6 +364,341 @@ Contributions are welcome! Please:
 4. Push to your branch
 5. Create a Pull Request
 
+
+## Complete K8s-Env Configuration Schema Documentation
+
+### Overview
+
+The k8s-env configuration format is a YAML-based schema used to define a local Kubernetes development environment. This section provides a detailed description of all available configuration options, their types, and usage examples.
+
+### Schema Structure
+
+```yaml
+environment:
+  # General settings
+  name: string                    # Name of the environment
+  base-dir: string                # Base directory for storage
+  expand-base-dir-vars: boolean   # Whether to expand variables in base-dir
+  
+  # Provider configuration
+  provider:
+    name: string                 # Provider name (currently only "kind" supported)
+    runtime: string              # Container runtime (docker or podman)
+  
+  # Kubernetes configuration
+  kubernetes:
+    api-port: integer            # API server port
+    image: string                # Node image
+    tag: string                  # Node image tag
+  
+  # Node configuration
+  nodes:
+    servers: integer             # Number of control-plane nodes
+    workers: integer             # Number of worker nodes
+    allow-scheduling-on-control-plane: boolean # Allow scheduling on control-plane
+  
+  # Network configuration
+  local-ip: string              # Local IP for DNS resolution
+  local-domain: string          # Local domain for DNS resolution
+  local-lb-ports: array         # Load balancer ports
+  
+  # Registry configuration
+  registry:
+    name: string                # Registry name
+    storage:
+      size: string              # Storage size for registry
+  
+  # Internal components
+  internal-components: array    # List of internal components with versions
+  
+  # Service configuration
+  use-service-presets: boolean  # Whether to use service presets
+  services: array               # List of services to deploy
+```
+
+### Detailed Field Descriptions
+
+#### General Settings
+
+##### `name`
+- **Type**: string
+- **Description**: Name of the environment. This drives the naming of Kubernetes clusters, nodes, and host containers.
+- **Example**: `dev-me`
+
+##### `base-dir`
+- **Type**: string
+- **Description**: Directory where Kubernetes logs, storage, and various config files are stored.
+- **Example**: `${PWD}/.local`
+- **Notes**: Can use environment variables like `${PWD}` which will be expanded if `expand-base-dir-vars` is true.
+
+##### `expand-base-dir-vars`
+- **Type**: boolean
+- **Description**: Whether to expand variables in the `base-dir` path.
+- **Default**: true
+- **Example**: true
+- **Notes**: Set to false if using absolute paths.
+
+#### Provider Configuration
+
+##### `provider.name`
+- **Type**: string
+- **Description**: Provider for Kubernetes clusters.
+- **Allowed Values**: Currently only "kind" is supported.
+- **Example**: `kind`
+
+##### `provider.runtime`
+- **Type**: string
+- **Description**: Container runtime to use.
+- **Allowed Values**: "docker" or "podman"
+- **Example**: `docker`
+- **Notes**: Podman is not fully supported with KinD yet.
+
+#### Kubernetes Configuration
+
+##### `kubernetes.api-port`
+- **Type**: integer
+- **Description**: Port for the Kubernetes API server, exposed to the host machine as local-ip:api-port.
+- **Default**: 6443
+- **Example**: 6443
+
+##### `kubernetes.image`
+- **Type**: string
+- **Description**: Docker image for the KinD nodes.
+- **Default**: kindest/node
+- **Example**: `kindest/node`
+
+##### `kubernetes.tag`
+- **Type**: string
+- **Description**: Tag for the KinD node image.
+- **Example**: `v1.32.3`
+
+#### Node Configuration
+
+##### `nodes.servers`
+- **Type**: integer
+- **Description**: Number of control-plane servers/masters.
+- **Default**: 1
+- **Example**: 1
+
+##### `nodes.workers`
+- **Type**: integer
+- **Description**: Number of worker nodes.
+- **Default**: 1
+- **Example**: 1
+
+##### `nodes.allow-scheduling-on-control-plane`
+- **Type**: boolean
+- **Description**: Whether to allow scheduling on control plane nodes even when workers exist.
+- **Default**: true
+- **Example**: true
+
+#### Network Configuration
+
+##### `local-ip`
+- **Type**: string
+- **Description**: Local IP, mapping to the host IP to use for DNS resolution and wildcard certificates.
+- **Example**: `192.168.0.10`
+
+##### `local-domain`
+- **Type**: string
+- **Description**: Domain name to use for custom DNS resolution and wildcard certificates.
+- **Example**: `dev.me`
+
+##### `local-lb-ports`
+- **Type**: array of integers
+- **Description**: List of ports to expose on the load balancer side, mapping to the host machine.
+- **Example**: 
+  ```yaml
+  local-lb-ports:
+    - 80  # HTTP port for nginx ingress controller
+    - 443 # HTTPS port for nginx ingress controller
+  ```
+
+#### Registry Configuration
+
+##### `registry.name`
+- **Type**: string
+- **Description**: Name of the registry, used in the final URL for the registry (i.e., `<registry.name>.<local-domain>`).
+- **Example**: `cr`
+
+##### `registry.storage.size`
+- **Type**: string
+- **Description**: Size of the PersistentVolumeClaim for registry storage.
+- **Example**: `15Gi`
+
+#### Internal Components
+
+##### `internal-components`
+- **Type**: array of objects
+- **Description**: List of internal components (Helm charts or Docker containers used for internal purposes) with their versions.
+- **Example**:
+  ```yaml
+  internal-components:
+    - cert-manager: "v1.17.1"
+    - app-template: "3.7.3"
+    - nginx-ingress: "4.12.1"
+    - registry: "3"
+    - dnsmasq: "2.91"
+  ```
+- **Notes**: Each component is specified as a key-value pair where the key is the component name and the value is its version.
+
+#### Service Configuration
+
+##### `use-service-presets`
+- **Type**: boolean
+- **Description**: Whether to use preset values for enabled services.
+- **Default**: true
+- **Example**: true
+- **Notes**: Leave true unless you have a good reason to override the defaults.
+
+##### `services`
+- **Type**: array of objects
+- **Description**: List of additional services to deploy within the cluster.
+- **Example**:
+  ```yaml
+  services:
+    - name: mysql
+      enabled: false
+      namespace: common-services
+      ports:
+        - 3306
+      storage:
+        size: 10Gi
+      config:
+        chart: bitnami/mysql
+        version: 12.3.2
+        values:
+          auth:
+            createDatabase: false
+  ```
+
+###### Service Object Properties
+
+###### `name`
+- **Type**: string
+- **Description**: Name of the service.
+- **Example**: `mysql`
+
+###### `enabled`
+- **Type**: boolean
+- **Description**: Whether to install this component and expose the port(s).
+- **Default**: false
+- **Example**: false
+
+###### `namespace`
+- **Type**: string
+- **Description**: Kubernetes namespace for the service.
+- **Default**: Same as service name
+- **Example**: `common-services`
+
+###### `ports`
+- **Type**: array of integers
+- **Description**: Ports to expose on the host machine.
+- **Example**: 
+  ```yaml
+  ports:
+    - 3306
+  ```
+
+###### `storage.size`
+- **Type**: string
+- **Description**: Size of the PersistentVolumeClaim for service storage.
+- **Example**: `10Gi`
+
+###### `config.chart`
+- **Type**: string
+- **Description**: Helm chart to use for the service.
+- **Example**: `bitnami/mysql`
+
+###### `config.version`
+- **Type**: string
+- **Description**: Version of the Helm chart.
+- **Example**: `12.3.2`
+
+###### `config.values`
+- **Type**: object
+- **Description**: Additional values to use for the Helm chart.
+- **Example**:
+  ```yaml
+  values:
+    auth:
+      createDatabase: false
+  ```
+
+### Example Configuration
+
+```yaml
+environment:
+  name: dev-me
+  base-dir: ${PWD}/.local
+  expand-base-dir-vars: true
+
+  provider:
+    name: kind
+    runtime: docker
+
+  kubernetes:
+    api-port: 6443
+    image: kindest/node
+    tag: v1.32.3
+
+  nodes:
+    servers: 1
+    workers: 1
+    allow-scheduling-on-control-plane: true
+
+  local-ip: 192.168.0.10
+  local-domain: dev.me
+  local-lb-ports:
+    - 80
+    - 443
+
+  registry:
+    name: cr
+    storage:
+      size: 15Gi
+
+  internal-components:
+    - cert-manager: "v1.17.1"
+    - app-template: "3.7.3"
+    - nginx-ingress: "4.12.1"
+    - registry: "3"
+    - dnsmasq: "2.91"
+
+  use-service-presets: true
+  services:
+    - name: postgres
+      enabled: true
+      namespace: common-services
+      ports:
+        - 5432
+      storage:
+        size: 5Gi
+      config:
+        chart: bitnami/postgresql
+        version: 16.6.0
+```
+
+### Notes on Usage
+
+1. The configuration is processed by the `generate_configs.py` script, which creates various Kubernetes configuration files based on the provided settings.
+
+2. The script supports both macOS and Linux environments, with different DNS resolver configurations for each.
+
+3. Service presets are loaded from a separate YAML file (`service_presets.yaml`) and can be overridden by setting `use-service-presets` to false.
+
+4. The configuration generates several output files:
+   - `cluster.yaml`: KinD cluster configuration
+   - `containerd.yaml`: Containerd configuration
+   - `dnsmasq.conf`: DNS configuration
+   - `helmfile.yaml`: Helmfile configuration
+   - `cluster-issuer.yaml`: Cert-manager cluster issuer configuration
+
+5. The script requires sudo privileges to configure DNS resolvers on the host system.
+
+6. Environment variables in paths (like `${PWD}`) are expanded if `expand-base-dir-vars` is set to true.
+
+
 ## License
 
 [MIT](LICENSE)
