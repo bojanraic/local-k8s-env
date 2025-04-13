@@ -21,7 +21,8 @@ releases:
     namespace: cert-manager
     version: {{ cert_manager_version }}
     values:
-      - installCRDs: true
+      - crds:
+          enabled: true
         global:
           leaderElection:
             namespace: cert-manager
