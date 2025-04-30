@@ -39,7 +39,7 @@ environment:
     # renovate: datasource=helm depName=app-template repoUrl=https://bjw-s.github.io/helm-charts/ versioning=helm
     - app-template: "3.7.3"
     # renovate: datasource=helm depName=ingress-nginx repoUrl=https://kubernetes.github.io/ingress-nginx versioning=helm
-    - nginx-ingress: "4.12.1"
+    - nginx-ingress: "4.12.2"
     # renovate: datasource=docker depName=registry versioning=docker
     - registry: "3"
     # renovate: datasource=docker depName=dockurr/dnsmasq versioning=docker
