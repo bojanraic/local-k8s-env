@@ -96,7 +96,7 @@ environment:
       config:
         chart: bitnami/rabbitmq # the chart to use
         # renovate: datasource=helm depName=rabbitmq repoUrl=https://charts.bitnami.com/bitnami versioning=helm
-        version: 16.0.0
+        version: 16.0.1
         values: 
           ingress:
             enabled: true
