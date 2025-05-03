@@ -36,7 +36,7 @@ environment:
   internal-components:
     # renovate: datasource=helm depName=cert-manager repoUrl=https://charts.jetstack.io versioning=helm
     - cert-manager: "v1.17.1"
-    # renovate: datasource=helm depName=app-template repoUrl=https://bjw-s.github.io/helm-charts/ versioning=helm
+    # renovate: datasource=helm depName=app-template repoUrl=https://bjw-s-labs.github.io/helm-charts/ versioning=helm
     - app-template: "3.7.3"
     # renovate: datasource=helm depName=ingress-nginx repoUrl=https://kubernetes.github.io/ingress-nginx versioning=helm
     - nginx-ingress: "4.12.2"
