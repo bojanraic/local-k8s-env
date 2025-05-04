@@ -17,11 +17,11 @@
         "k8s-env\\.yaml(?:\\.example)?$"
       ],
       "matchStrings": [
-        "\\s*chart:\\s*(?:.*?/)?(?<package>[^/\\s]+)\\s*#.*\\n\\s*#\\s*renovate:\\s*datasource=(?<datasource>[^\\s]+)\\s+depName=(?<depName>[^\\s]+)\\s+repoUrl=(?<repoUrl>[^\\s]+)\\s+versioning=(?<versioning>[^\\s]+)\\s*\\n\\s*version:\\s*(?<currentValue>\\S+).*"
+        "\\s*chart:\\s*(?:.*?/)?(?<package>[^/\\s]+)\\s*#.*\\n\\s*#\\s*renovate:\\s*datasource=(?<datasource>[^\\s]+)\\s+depName=(?<depName>[^\\s]+)(?:\\s+repoUrl=(?<repoUrl>[^\\s]+))?(?:\\s+versioning=(?<versioning>[^\\s]+))?\\s*\\n\\s*version:\\s*(?<currentValue>\\S+).*"
       ],
       "datasourceTemplate": "{{datasource}}",
       "packageNameTemplate": "{{depName}}",
-      "registryUrlTemplate": "{{repoUrl}}"
+      "registryUrlTemplate": "{{#if repoUrl}}{{repoUrl}}{{/if}}"
     },
     {
       "customType": "regex",
@@ -29,7 +29,7 @@
         "k8s-env\\.yaml(?:\\.example)?$"
       ],
       "matchStrings": [
-        "# renovate:\\s*datasource=docker\\s+depName=(?<depName>[^\\s]+)\\s+versioning=docker\\s*\\n\\s*tag:\\s*(?<currentValue>\\S+)"
+        "# renovate:\\s*datasource=docker\\s+depName=(?<depName>[^\\s]+)(?:\\s+versioning=docker)?\\s*\\n\\s*tag:\\s*(?<currentValue>\\S+)"
       ],
       "datasourceTemplate": "docker",
       "packageNameTemplate": "{{depName}}"
@@ -40,10 +40,11 @@
         "k8s-env\\.yaml(?:\\.example)?$"
       ],
       "matchStrings": [
-        "(?sm)# renovate:\\s*datasource=(?<datasource>\\S+)\\s+depName=(?<depName>\\S+)(?:\\s+repoUrl=\\S+)?(?:\\s+versioning=\\S+)?\\s*\\n\\s*-\\s*(?<key>[^:]+):\\s*\\\"(?<currentValue>[^\\\"]+)\\\""
+        "(?sm)# renovate:\\s*datasource=(?<datasource>\\S+)\\s+depName=(?<depName>\\S+)(?:\\s+repoUrl=(?<repoUrl>[^\\s]+))?(?:\\s+versioning=\\S+)?\\s*\\n\\s*-\\s*(?<key>[^:]+):\\s*\\\"(?<currentValue>[^\\\"]+)\\\""
       ],
       "datasourceTemplate": "{{datasource}}",
-      "packageNameTemplate": "{{depName}}"
+      "packageNameTemplate": "{{depName}}",
+      "registryUrlTemplate": "{{#if repoUrl}}{{repoUrl}}{{/if}}"
     }
   ]
 } 

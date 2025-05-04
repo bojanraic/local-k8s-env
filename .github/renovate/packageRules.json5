@@ -76,6 +76,7 @@
       "ignoreTests": true
     },
     {
+      "description": "Bitnami charts",
       "matchDatasources": [
         "helm"
       ],
@@ -86,7 +87,8 @@
         "mysql",
         "postgresql",
         "mongodb",
-        "rabbitmq"
+        "rabbitmq",
+        "valkey"
       ],
       "versioning": "helm",
       "extractVersion": "^(?<version>\\d+\\.\\d+\\.\\d+)$"
@@ -104,6 +106,19 @@
       ]
     },
     {
+      "description": "Internal component: cert-manager",
+      "matchDatasources": [
+        "helm"
+      ],
+      "matchPackageNames": [
+        "cert-manager"
+      ],
+      "registryUrls": [
+        "https://charts.jetstack.io"
+      ],
+      "versioning": "helm"
+    },
+    {
       "description": "Internal component: app-template",
       "matchDatasources": [
         "helm"
@@ -112,7 +127,7 @@
         "app-template"
       ],
       "registryUrls": [
-        "https://bjw-s.github.io/helm-charts/"
+        "https://bjw-s-labs.github.io/helm-charts/"
       ],
       "versioning": "helm"
     },
@@ -136,7 +151,8 @@
       ],
       "matchPackageNames": [
         "registry",
-        "dockurr/dnsmasq"
+        "dockurr/dnsmasq",
+        "kindest/node"
       ],
       "versioning": "docker"
     }

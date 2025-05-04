@@ -14,8 +14,8 @@ environment:
   kubernetes:
     api-port: 6443 # port for the API server, will be exposed to the host machine as local-ip:api-port
     image: kindest/node # image for the kind nodes
-    # renovate: datasource=docker depName=kindest/node versioning=docker
-    tag: v1.33.0  # tag for the kind image
+    # renovate: datasource=docker depName=kindest/node
+    tag: v1.32.1  # tag for the kind image
 
   nodes: # common settings for all kubernetes nodes
     servers: 1 # number of control-plane servers/masters
@@ -34,15 +34,19 @@ environment:
       size: 15Gi # size of PVC  
 
   internal-components:
-    # renovate: datasource=helm depName=cert-manager repoUrl=https://charts.jetstack.io versioning=helm
+    # renovate: datasource=helm depName=cert-manager
     - cert-manager: "v1.17.1"
-    # renovate: datasource=helm depName=app-template repoUrl=https://bjw-s-labs.github.io/helm-charts/ versioning=helm
-    - app-template: "3.7.3"
-    # renovate: datasource=helm depName=ingress-nginx repoUrl=https://kubernetes.github.io/ingress-nginx versioning=helm
+
+    # renovate: datasource=helm depName=app-template
+    - app-template: "3.7.2"
+
+    # renovate: datasource=helm depName=ingress-nginx
     - nginx-ingress: "4.12.2"
-    # renovate: datasource=docker depName=registry versioning=docker
+
+    # renovate: datasource=docker depName=registry
     - registry: "3"
-    # renovate: datasource=docker depName=dockurr/dnsmasq versioning=docker
+
+    # renovate: datasource=docker depName=dockurr/dnsmasq
     - dnsmasq: "2.91"
 
   use-service-presets: true # whether or not to use the preset values for services; leave true unless you have a good reason to override the defaults
@@ -56,7 +60,7 @@ environment:
         size: 10Gi # size of PVC
       config:
         chart: bitnami/mysql # the chart to use
-        # renovate: datasource=helm depName=mysql repoUrl=https://charts.bitnami.com/bitnami versioning=helm
+        # renovate: datasource=helm depName=mysql
         version: 12.3.4
         values: # additional values to use for the chart
           auth:
@@ -71,7 +75,7 @@ environment:
         size: 5Gi
       config:
         chart: bitnami/postgresql # the chart to use
-        # renovate: datasource=helm depName=postgresql repoUrl=https://charts.bitnami.com/bitnami versioning=helm
+        # renovate: datasource=helm depName=postgresql
         version: 16.6.6
 
     - name: mongodb
@@ -83,7 +87,7 @@ environment:
         size: 5Gi # size of PVC
       config:
         chart: bitnami/mongodb # the chart to use
-        # renovate: datasource=helm depName=mongodb repoUrl=https://charts.bitnami.com/bitnami versioning=helm
+        # renovate: datasource=helm depName=mongodb
         version: 16.5.5
 
     - name: rabbitmq
@@ -95,7 +99,7 @@ environment:
         size: 2Gi # size of PVC
       config:
         chart: bitnami/rabbitmq # the chart to use
-        # renovate: datasource=helm depName=rabbitmq repoUrl=https://charts.bitnami.com/bitnami versioning=helm
+        # renovate: datasource=helm depName=rabbitmq
         version: 16.0.1
         values: 
           ingress:
@@ -116,5 +120,5 @@ environment:
         size: 1Gi
       config:
         chart: bitnami/valkey # the chart to use
-        # renovate: datasource=helm depName=valkey repoUrl=https://charts.bitnami.com/bitnami versioning=helm
+        # renovate: datasource=helm depName=valkey
         version: 3.0.3
