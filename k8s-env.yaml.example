@@ -35,7 +35,7 @@ environment:
 
   internal-components:
     # renovate: datasource=helm depName=cert-manager
-    - cert-manager: "v1.17.1"
+    - cert-manager: "v1.17.2"
 
     # renovate: datasource=helm depName=app-template
     - app-template: "3.7.2"
