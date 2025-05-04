@@ -15,7 +15,7 @@ environment:
     api-port: 6443 # port for the API server, will be exposed to the host machine as local-ip:api-port
     image: kindest/node # image for the kind nodes
     # renovate: datasource=docker depName=kindest/node
-    tag: v1.32.1  # tag for the kind image
+    tag: v1.33.0  # tag for the kind image
 
   nodes: # common settings for all kubernetes nodes
     servers: 1 # number of control-plane servers/masters
