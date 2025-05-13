@@ -34,7 +34,7 @@ helm = "3.17.3"
 helmfile = "1.0.0"
 
 # renovate: datasource=github-releases depName=yannh/kubeconform
-kubeconform = "0.6.7"
+kubeconform = "0.7.0"
 
 # renovate: datasource=github-releases depName=FiloSottile/mkcert
 mkcert = "1.4.4"
