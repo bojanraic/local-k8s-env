@@ -121,4 +121,4 @@ environment:
       config:
         chart: bitnami/valkey # the chart to use
         # renovate: datasource=helm depName=valkey
-        version: 3.0.4
+        version: 3.0.6
