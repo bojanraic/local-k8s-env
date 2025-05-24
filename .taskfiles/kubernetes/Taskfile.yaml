@@ -195,9 +195,10 @@ tasks:
             # Check if service is password-protected in presets
             IS_PROTECTED=$(yq e ".service_auth_presets.$SERVICE.password-protected" {{.ROOT_DIR}}/templates/service_presets.yaml)
             if [ "$IS_PROTECTED" = "true" ]; then
-              # Get secret name and field from presets
+              # Get secret name, field, and username from presets
               SECRET_NAME=$(yq e ".service_auth_presets.$SERVICE.secret-name" {{.ROOT_DIR}}/templates/service_presets.yaml)
               PASSWORD_FIELD=$(yq e ".service_auth_presets.$SERVICE.password-field" {{.ROOT_DIR}}/templates/service_presets.yaml)
+              USERNAME=$(yq e ".service_auth_presets.$SERVICE.username" {{.ROOT_DIR}}/templates/service_presets.yaml)
               
               # Use the actual namespace from Helm release
               NAMESPACE="${SERVICE_NAMESPACES[$SERVICE]}"
@@ -209,7 +210,7 @@ tasks:
               
               PASSWORD=$(kubectl get secret $SECRET_NAME -n $NAMESPACE -o jsonpath="{.data.$PASSWORD_FIELD}" | base64 --decode)
               if [ -n "$PASSWORD" ]; then
-                echo "Service $SERVICE (namespace: $NAMESPACE), Password: $PASSWORD" >> $OUTPUT_FILE
+                echo "Service $SERVICE (namespace: $NAMESPACE), Username: $USERNAME, Password: $PASSWORD" >> $OUTPUT_FILE
               else
                 echo "⚠️ Could not fetch password for service $SERVICE"
               fi

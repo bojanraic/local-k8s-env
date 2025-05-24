@@ -15,22 +15,27 @@ service_ports:
 
 service_auth_presets:
   mysql:
+    username: root
     password-protected: true
     secret-name: mysql
     password-field: mysql-root-password
   postgres:
+    username: postgres
     password-protected: true
     secret-name: postgres
     password-field: postgres-password
   mongodb:
+    username: root
     password-protected: true
     secret-name: mongodb
     password-field: mongodb-root-password
   rabbitmq:
+    username: user
     password-protected: true
     secret-name: rabbitmq
     password-field: rabbitmq-password
   valkey:
+    username: user
     password-protected: true
     secret-name: valkey
     password-field: valkey-password
