@@ -28,7 +28,7 @@ kubectl = "1.33.1"
 kustomize = "5.6.0"
 
 # renovate: datasource=github-releases depName=helm/helm
-helm = "3.18.0"
+helm = "3.18.1"
 
 # renovate: datasource=github-releases depName=helmfile/helmfile
 helmfile = "1.1.0"
