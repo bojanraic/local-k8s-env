@@ -35,9 +35,57 @@ tasks:
     status:
       - test -f {{.KUBECONFIG_PATH}} && grep -q {{.CLUSTER_NAME}} {{.KUBECONFIG_PATH}}
 
+  setup-helm-repos:
+    desc: Setup Helm repositories required by helmfile
+    silent: true
+    cmds:
+      - echo "🔄 Setting up Helm repositories..."
+      - |
+        # Add repositories if they don't exist
+        if ! helm repo list | grep -q "^ingress-nginx"; then
+          echo "  📦 Adding ingress-nginx repository..."
+          helm repo add ingress-nginx https://kubernetes.github.io/ingress-nginx >/dev/null
+        else
+          echo "  📦 Updating ingress-nginx repository..."
+          helm repo update ingress-nginx >/dev/null
+        fi
+        
+        if ! helm repo list | grep -q "^bitnami"; then
+          echo "  📦 Adding bitnami repository..."
+          helm repo add bitnami https://charts.bitnami.com/bitnami >/dev/null
+        else
+          echo "  📦 Updating bitnami repository..."
+          helm repo update bitnami >/dev/null
+        fi
+        
+        if ! helm repo list | grep -q "^bjw-s-labs"; then
+          echo "  📦 Adding bjw-s-labs repository..."
+          helm repo add bjw-s-labs https://bjw-s-labs.github.io/helm-charts/ >/dev/null
+        else
+          echo "  📦 Updating bjw-s-labs repository..."
+          helm repo update bjw-s-labs >/dev/null
+        fi
+        
+        if ! helm repo list | grep -q "^jetstack"; then
+          echo "  📦 Adding jetstack repository..."
+          helm repo add jetstack https://charts.jetstack.io >/dev/null
+        else
+          echo "  📦 Updating jetstack repository..."
+          helm repo update jetstack >/dev/null
+        fi
+      - echo "✅ Helm repositories setup complete"
+    status:
+      - |
+        # Check if all required repositories are present
+        helm repo list | grep -q "ingress-nginx" && \
+        helm repo list | grep -q "bitnami" && \
+        helm repo list | grep -q "bjw-s-labs" && \
+        helm repo list | grep -q "jetstack"
+
   setup-cert-manager:
     desc: Deploy cert-manager and configure ClusterIssuer with mkcert CA
     silent: true
+    deps: [setup-helm-repos]
     cmds:
       - echo "🔄 Setting up cert-manager..."
       - |
@@ -97,7 +145,7 @@ tasks:
   deploy-services:
     desc: Deploy remaining services using helmfile
     silent: true
-    deps: [setup-cert-manager]
+    deps: [setup-helm-repos, setup-cert-manager]
     cmds:
       - echo "🔄 Deploying services..."
       - |

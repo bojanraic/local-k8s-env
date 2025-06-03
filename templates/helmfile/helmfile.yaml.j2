@@ -1,13 +1,3 @@
-repositories:
-  - name: ingress-nginx
-    url: https://kubernetes.github.io/ingress-nginx
-  - name: bitnami
-    url: https://charts.bitnami.com/bitnami
-  - name: bjw-s-labs
-    url: https://bjw-s-labs.github.io/helm-charts/
-  - name: jetstack
-    url: https://charts.jetstack.io
-
 helmDefaults:
   createNamespace: true
   wait: true
@@ -88,7 +78,7 @@ releases:
   # Registry
   - name: registry
     namespace: registry
-    chart: bjw-s/app-template
+    chart: bjw-s-labs/app-template
     version: {{ app_template_version }}
     needs:
       - ingress-nginx/ingress-nginx

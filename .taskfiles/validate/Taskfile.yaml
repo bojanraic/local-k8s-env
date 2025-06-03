@@ -40,7 +40,12 @@ tasks:
           echo "ℹ️ Helm release {{.REGISTRY_NAME}}-test with image tag {{.IMAGE_TAG}} already deployed"
         else
           echo "🔄 Deploying a test app Helm release based on image tag {{.IMAGE_TAG}}..."
-          helm upgrade --install --wait {{.REGISTRY_NAME}}-test bjw-s/app-template \
+          # Ensure the bjw-s-labs repository is added
+          if ! helm repo list | grep -q "bjw-s-labs"; then
+            echo "  📦 Adding bjw-s-labs helm repository..."
+            helm repo add bjw-s-labs https://bjw-s-labs.github.io/helm-charts/ >/dev/null
+          fi
+          helm upgrade --install --wait {{.REGISTRY_NAME}}-test bjw-s-labs/app-template \
             --version {{.APP_TEMPLATE_VERSION}} --namespace default \
             --values <(cat << EOF
         controllers:
