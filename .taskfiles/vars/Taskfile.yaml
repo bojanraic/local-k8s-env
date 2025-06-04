@@ -62,7 +62,7 @@ vars:
   REG_TEST_DIR: "{{.TEST_DIR}}/registry"
   CR_TEST_IMAGE_TAG:
     sh: |
-      cd {{.ROOT_DIR}}/tests/registry && cat ep.sh Dockerfile | sha256sum | cut -c1-8
+      cd {{.ROOT_DIR}}/tests/registry && (cat ep.sh Dockerfile; date +%s) | sha256sum | cut -c1-8
   OS: '{{OS}}'
   ENABLED_SERVICES:
     sh: |

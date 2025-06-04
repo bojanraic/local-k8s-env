@@ -362,6 +362,8 @@ tasks:
       - task: validate:tcp-services
       - task: validate:local-registry
       - task: validate:app
+      - task: validate:demo-app-oci
+      - task: validate:print-urls
 
   create-validate-env:
     desc: Create a clean local environment and validate it
