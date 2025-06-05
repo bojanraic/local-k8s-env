@@ -4,6 +4,7 @@ description: A minimal demo application for testing local registry and Helm OCI 
 type: application
 version: 0.1.0
 appVersion: "1.0.0"
+icon: file://./icon.svg
 keywords:
   - demo
   - test

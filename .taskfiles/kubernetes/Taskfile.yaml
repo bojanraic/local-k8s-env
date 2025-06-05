@@ -105,10 +105,6 @@ tasks:
           }
         sleep 5  # Give cert-manager a moment to establish its CRDs
 
-        # Create namespace if it doesn't exist
-        kubectl --kubeconfig {{.KUBECONFIG_PATH}} create namespace cert-manager --dry-run=client -o yaml | \
-          kubectl --kubeconfig {{.KUBECONFIG_PATH}} apply -f -
-
         # Create or update CA secret
         echo "📦 Creating/updating mkcert CA secret..."
         kubectl --kubeconfig {{.KUBECONFIG_PATH}} create secret generic mkcert-ca-secret \

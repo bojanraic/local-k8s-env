@@ -40,15 +40,13 @@ spec:
             - name: http
               containerPort: 80
               protocol: TCP
+          {{- if .Values.env }}
           env:
-            - name: IMAGE_TAG
-              value: "{{ .Values.image.tag | default .Chart.AppVersion }}"
-            {{- if .Values.env }}
             {{- range .Values.env }}
             - name: {{ .name }}
               value: {{ .value | quote }}
             {{- end }}
-            {{- end }}
+          {{- end }}
           livenessProbe:
             {{- toYaml .Values.livenessProbe | nindent 12 }}
           readinessProbe:

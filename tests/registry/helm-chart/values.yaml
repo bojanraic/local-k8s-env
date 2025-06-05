@@ -36,14 +36,14 @@ ingress:
     cert-manager.io/duration: "72h"
     cert-manager.io/renew-before: "36h"
   hosts:
-    - host: demo-app.local
+    - host: registry-test.local
       paths:
         - path: /
           pathType: Prefix
   tls:
-    - secretName: demo-app-tls
+    - secretName: registry-test-tls
       hosts:
-        - demo-app.local
+        - registry-test.local
 
 # Additional environment variables for the container
 # Example:

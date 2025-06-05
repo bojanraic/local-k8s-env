@@ -33,123 +33,112 @@ tasks:
           echo "✅ Sample image built and pushed successfully with tags {{.EFFECTIVE_IMAGE_TAG}} and latest"
         fi
 
-  deploy-test-app:
-    desc: Deploy a sample Helm release using an image from the local registry
+  package-helm-chart:
+    desc: Package the demo-app Helm chart as an OCI artifact and push to local registry
     silent: true
     vars:
+      CHART_VERSION:
+        sh: yq e '.version' {{.REG_TEST_DIR}}/helm-chart/Chart.yaml
+      CHART_NAME:
+        sh: yq e '.name' {{.REG_TEST_DIR}}/helm-chart/Chart.yaml
+    cmds:
+      - |
+        echo "🔄 Packaging Helm chart as OCI artifact..."
+        
+        # Package the chart directly
+        echo "  📦 Packaging Helm chart..."
+        helm package {{.REG_TEST_DIR}}/helm-chart --destination /tmp
+        
+        # Push to OCI registry
+        echo "  🚀 Pushing chart to OCI registry..."
+        helm push /tmp/{{.CHART_NAME}}-{{.CHART_VERSION}}.tgz oci://{{.REGISTRY_HOST}}/helm-charts
+        
+        # Clean up
+        rm -f /tmp/{{.CHART_NAME}}-{{.CHART_VERSION}}.tgz
+        
+        echo "✅ Helm chart packaged and pushed to oci://{{.REGISTRY_HOST}}/helm-charts/{{.CHART_NAME}}:{{.CHART_VERSION}}"
+
+  deploy-demo-app:
+    desc: Deploy the demo-app from OCI registry
+    silent: true
+    vars:
+      CHART_VERSION:
+        sh: yq e '.version' {{.REG_TEST_DIR}}/helm-chart/Chart.yaml
+      CHART_NAME:
+        sh: yq e '.name' {{.REG_TEST_DIR}}/helm-chart/Chart.yaml
+      RELEASE_NAME: "{{.REGISTRY_NAME}}-test"
       EFFECTIVE_IMAGE_TAG: '{{.IMAGE_TAG | default .CR_TEST_IMAGE_TAG}}'
     cmds:
       - |
-        if helm get values {{.REGISTRY_NAME}}-test -n default -o yaml 2>/dev/null | grep -q "tag: {{.EFFECTIVE_IMAGE_TAG}}"; then
-          echo "ℹ️ Helm release {{.REGISTRY_NAME}}-test with image tag {{.EFFECTIVE_IMAGE_TAG}} already deployed"
+        if helm get values {{.RELEASE_NAME}} -n default -o yaml 2>/dev/null | grep -q "tag: {{.EFFECTIVE_IMAGE_TAG}}"; then
+          echo "ℹ️ Helm release {{.RELEASE_NAME}} with image tag {{.EFFECTIVE_IMAGE_TAG}} already deployed"
         else
-          echo "🔄 Deploying a test app Helm release based on image tag {{.EFFECTIVE_IMAGE_TAG}}..."
-          # Ensure the bjw-s-labs repository is added
-          if ! helm repo list | grep -q "bjw-s-labs"; then
-            echo "  📦 Adding bjw-s-labs helm repository..."
-            helm repo add bjw-s-labs https://bjw-s-labs.github.io/helm-charts/ >/dev/null
-          fi
-          helm upgrade --install --wait {{.REGISTRY_NAME}}-test bjw-s-labs/app-template \
-            --version {{.APP_TEMPLATE_VERSION}} --namespace default \
-            --values <(cat << EOF
-        controllers:
-          main:
-            type: deployment
-            strategy: RollingUpdate
-            containers:
-              main:
-                image:
-                  repository: {{.REGISTRY_HOST}}/{{.REGISTRY_NAME}}-test
-                  tag: {{.EFFECTIVE_IMAGE_TAG}}
-                env:
-                  - name: IMAGE_TAG
-                    value: {{.EFFECTIVE_IMAGE_TAG}}
-                  - name: APP_TEMPLATE_CHART
-                    value: "true"
-                  - name: CONTROLLER_NAME
-                    value: "main"
-                  - name: SERVICE_NAME
-                    value: "main"
-                  - name: HELM_RELEASE_NAME
-                    value: {{.REGISTRY_NAME}}-test
-                  - name: CHART_VERSION
-                    value: {{.APP_TEMPLATE_VERSION}}
-        service:
-          main:
-            controller: main
-            ports:
-              http:
-                port: 80
-        ingress:
-          main:
-            enabled: true
-            className: nginx
-            annotations:
-              cert-manager.io/cluster-issuer: "mkcert-issuer"
-              nginx.ingress.kubernetes.io/ssl-redirect: "true"
-              nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
-              cert-manager.io/duration: "72h"
-              cert-manager.io/renew-before: "36h"
-            hosts:
-              - host: {{.REGISTRY_NAME}}-test.{{.LOCAL_DOMAIN}}
-                paths:
-                  - path: /
-                    pathType: Prefix
-                    service:
-                      identifier: main
-                      port: http
-            tls:
-              - secretName: {{.REGISTRY_NAME}}-test-tls
-                hosts:
-                  - {{.REGISTRY_NAME}}-test.{{.LOCAL_DOMAIN}}
-        EOF
-        )
-          echo "✅ Test app Helm release based on image tag {{.EFFECTIVE_IMAGE_TAG}} deployed successfully"
+          echo "🔄 Deploying demo-app from OCI registry..."
+          
+          # Install/upgrade from OCI registry
+          helm upgrade --install --wait {{.RELEASE_NAME}} \
+            oci://{{.REGISTRY_HOST}}/helm-charts/{{.CHART_NAME}} \
+            --version {{.CHART_VERSION}} \
+            --namespace default \
+            --set image.tag={{.EFFECTIVE_IMAGE_TAG}} \
+            --set image.repository={{.REGISTRY_HOST}}/{{.REGISTRY_NAME}}-test \
+            --set ingress.hosts[0].host={{.REGISTRY_NAME}}-test.{{.LOCAL_DOMAIN}} \
+            --set ingress.hosts[0].paths[0].path=/ \
+            --set ingress.hosts[0].paths[0].pathType=Prefix \
+            --set ingress.tls[0].hosts[0]={{.REGISTRY_NAME}}-test.{{.LOCAL_DOMAIN}} \
+            --set ingress.tls[0].secretName={{.REGISTRY_NAME}}-test-tls \
+            --set env[0].name=CHART_NAME \
+            --set env[0].value={{.CHART_NAME}} \
+            --set env[1].name=CHART_VERSION \
+            --set env[1].value={{.CHART_VERSION}} \
+            --set env[2].name=HELM_RELEASE_NAME \
+            --set env[2].value={{.RELEASE_NAME}} \
+            --set env[3].name=IMAGE_TAG \
+            --set env[3].value={{.EFFECTIVE_IMAGE_TAG}}
+          
+          echo "✅ Demo app deployed from OCI chart at https://{{.REGISTRY_NAME}}-test.{{.LOCAL_DOMAIN}}"
         fi
 
-  undeploy-test-app:
-    desc: Undeploy the test app Helm release
+  undeploy-demo-app:
+    desc: Undeploy the demo-app release
     silent: true
-    cmds:
-      - echo "🔄 Undeploying sample app helm release..."
-      - |
-        if helm status {{.REGISTRY_NAME}}-test -n default >/dev/null 2>&1; then
-          echo "  ⏳ Uninstalling helm release '{{.REGISTRY_NAME}}-test'..."
-          helm uninstall {{.REGISTRY_NAME}}-test -n default
-          echo "  ✅ Helm release '{{.REGISTRY_NAME}}-test' uninstalled"
-        else
-          echo "ℹ️ Helm release '{{.REGISTRY_NAME}}-test' is not installed"
-        fi
-      - echo "✅ Sample app helm release undeployed"
-
-  app-template-helm-workflow:
-    desc: "App-template workflow: build image and deploy using bjw-s app-template chart"
     vars:
-      COMPUTED_IMAGE_TAG:
-        sh: cd {{.ROOT_DIR}}/tests/registry && (cat ep.sh Dockerfile; date +%s) | sha256sum | cut -c1-8
+      RELEASE_NAME: "{{.REGISTRY_NAME}}-test"
+    cmds:
+      - echo "🔄 Undeploying demo-app release..."
+      - |
+        if helm status {{.RELEASE_NAME}} -n default >/dev/null 2>&1; then
+          echo "  ⏳ Uninstalling helm release '{{.RELEASE_NAME}}'..."
+          helm uninstall {{.RELEASE_NAME}} -n default
+          echo "  ✅ Helm release '{{.RELEASE_NAME}}' uninstalled"
+        else
+          echo "ℹ️ Helm release '{{.RELEASE_NAME}}' is not installed"
+        fi
+      - echo "✅ Demo app release undeployed"
+
+  demo-app-workflow:
+    desc: "Complete demo app workflow: build image, package chart, and deploy from OCI registry"
     cmds:
       - task: build-push-image
-        vars: { IMAGE_TAG: '{{.COMPUTED_IMAGE_TAG}}' }
-      - task: deploy-test-app
-        vars: { IMAGE_TAG: '{{.COMPUTED_IMAGE_TAG}}' }
+      - task: package-helm-chart
+      - task: deploy-demo-app
 
   local-registry:
-    desc: "Validates local registry by running both app-template and OCI Helm workflows"
+    desc: "Validates local registry by running the demo app workflow"
     cmds:
-      - task: app-template-helm-workflow
-      - task: demo-app-oci-helm-workflow
+      - task: demo-app-workflow
 
   app:
-    desc: Validates sample app deployed via Helm release from local registry
+    desc: Validates demo app deployed via Helm release from local registry
     silent: true
     vars:
       TEST_NAME: "{{.REGISTRY_NAME}}-test"
     cmds:
-      - echo "🔄 Validating sample application..."
+      - echo "🔄 Validating demo application..."
       - sleep 5
       - echo -e "\n🌐 Registry Test (https://{{.TEST_NAME}}.{{.LOCAL_DOMAIN}}/):\n"
       - curl -s https://{{.TEST_NAME}}.{{.LOCAL_DOMAIN}}/
-      - echo "✅ Sample application validation complete"
+      - echo "✅ Demo application validation complete"
 
   tcp-services-external:
     desc: "Validate TCP services are reachable from the local machine"
@@ -247,104 +236,11 @@ tasks:
       - task: tcp-services-external
       - task: tcp-services-internal
 
-  package-helm-chart:
-    desc: Package the demo-app Helm chart as an OCI artifact and push to local registry
-    silent: true
-    vars:
-      CHART_VERSION:
-        sh: yq e '.version' {{.REG_TEST_DIR}}/helm-chart/Chart.yaml
-      CHART_NAME:
-        sh: yq e '.name' {{.REG_TEST_DIR}}/helm-chart/Chart.yaml
-    cmds:
-      - |
-        echo "🔄 Packaging Helm chart as OCI artifact..."
-        
-        # Package the chart directly
-        echo "  📦 Packaging Helm chart..."
-        helm package {{.REG_TEST_DIR}}/helm-chart --destination /tmp
-        
-        # Push to OCI registry
-        echo "  🚀 Pushing chart to OCI registry..."
-        helm push /tmp/{{.CHART_NAME}}-{{.CHART_VERSION}}.tgz oci://{{.REGISTRY_HOST}}/helm-charts
-        
-        # Clean up
-        rm -f /tmp/{{.CHART_NAME}}-{{.CHART_VERSION}}.tgz
-        
-        echo "✅ Helm chart packaged and pushed to oci://{{.REGISTRY_HOST}}/helm-charts/{{.CHART_NAME}}:{{.CHART_VERSION}}"
-
-  deploy-oci-chart:
-    desc: Deploy the demo-app from OCI registry
-    silent: true
-    vars:
-      CHART_VERSION:
-        sh: yq e '.version' {{.REG_TEST_DIR}}/helm-chart/Chart.yaml
-      CHART_NAME:
-        sh: yq e '.name' {{.REG_TEST_DIR}}/helm-chart/Chart.yaml
-      RELEASE_NAME: "demo-app-oci"
-    cmds:
-      - |
-        if helm get values {{.RELEASE_NAME}} -n default -o yaml 2>/dev/null | grep -q "tag: {{.CR_TEST_IMAGE_TAG}}"; then
-          echo "ℹ️ Helm release {{.RELEASE_NAME}} with image tag {{.CR_TEST_IMAGE_TAG}} already deployed"
-        else
-          echo "🔄 Deploying demo-app from OCI registry..."
-          
-          # Install/upgrade from OCI registry
-          helm upgrade --install --wait {{.RELEASE_NAME}} \
-            oci://{{.REGISTRY_HOST}}/helm-charts/{{.CHART_NAME}} \
-            --version {{.CHART_VERSION}} \
-            --namespace default \
-            --set image.tag={{.CR_TEST_IMAGE_TAG}} \
-            --set image.repository={{.REGISTRY_HOST}}/{{.REGISTRY_NAME}}-test \
-            --set ingress.hosts[0].host=demo-app-oci.{{.LOCAL_DOMAIN}} \
-            --set ingress.hosts[0].paths[0].path=/ \
-            --set ingress.hosts[0].paths[0].pathType=Prefix \
-            --set ingress.tls[0].hosts[0]=demo-app-oci.{{.LOCAL_DOMAIN}} \
-            --set ingress.tls[0].secretName=demo-app-oci-tls \
-            --set env[0].name=DEMO_APP_CHART \
-            --set env[0].value=true \
-            --set env[1].name=CHART_NAME \
-            --set env[1].value={{.CHART_NAME}} \
-            --set env[2].name=CHART_VERSION \
-            --set env[2].value={{.CHART_VERSION}} \
-            --set env[3].name=HELM_RELEASE_NAME \
-            --set env[3].value={{.RELEASE_NAME}}
-          
-          echo "✅ Demo app deployed from OCI chart at https://demo-app-oci.{{.LOCAL_DOMAIN}}"
-        fi
-
-  undeploy-oci-chart:
-    desc: Undeploy the demo-app OCI chart release
-    silent: true
-    vars:
-      RELEASE_NAME: "demo-app-oci"
-    cmds:
-      - echo "🔄 Undeploying demo-app OCI chart release..."
-      - |
-        if helm status {{.RELEASE_NAME}} -n default >/dev/null 2>&1; then
-          echo "  ⏳ Uninstalling helm release '{{.RELEASE_NAME}}'..."
-          helm uninstall {{.RELEASE_NAME}} -n default
-          echo "  ✅ Helm release '{{.RELEASE_NAME}}' uninstalled"
-        else
-          echo "ℹ️ Helm release '{{.RELEASE_NAME}}' is not installed"
-        fi
-      - echo "✅ Demo app OCI chart release undeployed"
-
-  demo-app-oci-helm-workflow:
-    desc: "Complete OCI workflow: build image, package chart, and deploy from OCI registry"
-    cmds:
-      - task: build-push-image
-      - task: package-helm-chart
-      - task: deploy-oci-chart
-
-  demo-app-oci:
-    desc: Validate the OCI-deployed demo app
+  demo-app:
+    desc: Validate the demo app (alias for app task)
     silent: true
     cmds:
-      - echo "🔄 Validating OCI-deployed demo application..."
-      - sleep 5
-      - echo -e "\n🌐 OCI Demo App (https://demo-app-oci.{{.LOCAL_DOMAIN}}/):\n"
-      - curl -s https://demo-app-oci.{{.LOCAL_DOMAIN}}/
-      - echo "✅ OCI demo application validation complete"
+      - task: app
 
   print-urls:
     desc: Print URLs for deployed test applications
@@ -354,23 +250,13 @@ tasks:
         echo "🌐 Deployed Test Application URLs:"
         echo ""
         
-        # Check if app-template deployment exists
+        # Check if demo app deployment exists
         if helm status {{.REGISTRY_NAME}}-test -n default >/dev/null 2>&1; then
-          echo "📱 App-Template-based Helm deployment:"
+          echo "📦 Demo App OCI Helm Deployment:"
           echo "   https://{{.REGISTRY_NAME}}-test.{{.LOCAL_DOMAIN}}/"
           echo ""
         else
-          echo "ℹ️  App-Template-based Helm deployment not found ({{.REGISTRY_NAME}}-test)"
-          echo ""
-        fi
-        
-        # Check if OCI demo-app deployment exists
-        if helm status demo-app-oci -n default >/dev/null 2>&1; then
-          echo "📦 Demo App OCI Helm Deployment:"
-          echo "   https://demo-app-oci.{{.LOCAL_DOMAIN}}/"
-          echo ""
-        else
-          echo "ℹ️  Demo App OCI Helm deployment not found (demo-app-oci)"
+          echo "ℹ️  Demo App deployment not found ({{.REGISTRY_NAME}}-test)"
           echo ""
         fi
 
@@ -387,10 +273,10 @@ tasks:
         helm template demo-app {{.REG_TEST_DIR}}/helm-chart \
           --set image.tag={{.CR_TEST_IMAGE_TAG}} \
           --set image.repository={{.REGISTRY_HOST}}/{{.REGISTRY_NAME}}-test \
-          --set ingress.hosts[0].host=demo-app.{{.LOCAL_DOMAIN}} \
-          --set ingress.tls[0].hosts[0]=demo-app.{{.LOCAL_DOMAIN}} \
-          --dry-run > /tmp/demo-app-rendered.yaml
+          --set ingress.hosts[0].host={{.REGISTRY_NAME}}-test.{{.LOCAL_DOMAIN}} \
+          --set ingress.tls[0].hosts[0]={{.REGISTRY_NAME}}-test.{{.LOCAL_DOMAIN}} \
+          --dry-run > {{.K8S_DIR}}/config/demo-app-rendered.yaml
         
         echo "  ✅ Chart templates rendered successfully"
-        echo "  📄 Rendered templates saved to /tmp/demo-app-rendered.yaml"
+        echo "  📄 Rendered templates saved to {{.K8S_DIR}}/config/demo-app-rendered.yaml"
       - echo "✅ Helm chart testing complete"

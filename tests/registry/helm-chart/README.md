@@ -61,7 +61,7 @@ helm install demo-app ./helm-chart \
 | `service.port` | Service port | `80` |
 | `ingress.enabled` | Enable ingress | `true` |
 | `ingress.className` | Ingress class name | `nginx` |
-| `ingress.hosts[0].host` | Hostname | `demo-app.local` |
+| `ingress.hosts[0].host` | Hostname | `registry-test.local` |
 | `ingress.annotations` | Ingress annotations | cert-manager and nginx configs |
 
 **Note**: The chart uses sensible defaults that should be overridden for your environment using `--set` parameters during deployment.
@@ -84,29 +84,22 @@ annotations:
 task validate:test-helm-chart
 ```
 
-### Build and Deploy via OCI
+### Build and Deploy Demo App
 ```bash
-task validate:demo-app-oci-helm-workflow
+task validate:demo-app-workflow
 ```
 
-### Build and Deploy via App-Template
-```bash
-task validate:app-template-helm-workflow
-```
-
-### Run Both Workflows
+### Run Complete Validation
 ```bash
 task validate:local-registry
 ```
 
-### Validate Deployments
+### Validate Deployment
 ```bash
-task validate:app
-task validate:demo-app-oci
+task validate:demo-app
 ```
 
 ### Clean Up
 ```bash
-task validate:undeploy-oci-chart
-task validate:undeploy-test-app
+task validate:undeploy-demo-app
 ``` 

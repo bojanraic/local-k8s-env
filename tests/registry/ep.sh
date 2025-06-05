@@ -1,47 +1,17 @@
 #!/bin/sh
 
-# Detect which chart is being used based on environment variables
-CHART_TYPE="unknown"
-CHART_INFO=""
+# Demo app chart
+CHART_TYPE="demo-app"
+CHART_INFO="<p><strong>Chart:</strong> Demo App OCI Helm Chart</p>"
 
-# Check if we're running via app-template (bjw-s) chart
-# App-template typically sets these environment variables
-if [ -n "$SERVICE_NAME" ] || [ -n "$CONTROLLER_NAME" ] || [ -n "$APP_TEMPLATE_CHART" ]; then
-    CHART_TYPE="app-template"
-    CHART_INFO="<p><strong>Chart:</strong> BJW-S App Template (bjw-s-labs/app-template)</p>"
-    if [ -n "$SERVICE_NAME" ]; then
-        CHART_INFO="$CHART_INFO<p><strong>Service:</strong> $SERVICE_NAME</p>"
-    fi
-    if [ -n "$CONTROLLER_NAME" ]; then
-        CHART_INFO="$CHART_INFO<p><strong>Controller:</strong> $CONTROLLER_NAME</p>"
-    fi
-    if [ -n "$HELM_RELEASE_NAME" ]; then
-        CHART_INFO="$CHART_INFO<p><strong>Release:</strong> $HELM_RELEASE_NAME</p>"
-    fi
-    if [ -n "$CHART_VERSION" ]; then
-        CHART_INFO="$CHART_INFO<p><strong>Version:</strong> $CHART_VERSION</p>"
-    fi
-# Check for our custom demo-app chart environment variables
-elif [ -n "$DEMO_APP_CHART" ] || [ "$CHART_NAME" = "demo-app" ]; then
-    CHART_TYPE="demo-app"
-    CHART_INFO="<p><strong>Chart:</strong> Demo App OCI Helm Chart</p>"
-    if [ -n "$HELM_RELEASE_NAME" ]; then
-        CHART_INFO="$CHART_INFO<p><strong>Release:</strong> $HELM_RELEASE_NAME</p>"
-    fi
-    if [ -n "$CHART_VERSION" ]; then
-        CHART_INFO="$CHART_INFO<p><strong>Version:</strong> $CHART_VERSION</p>"
-    fi
-else
-    # Try to detect based on common Helm environment variables
-    if [ -n "$HELM_RELEASE_NAME" ]; then
-        CHART_TYPE="helm-release"
-        CHART_INFO="<p><strong>Chart:</strong> Helm Release</p><p><strong>Release:</strong> $HELM_RELEASE_NAME</p>"
-    else
-        CHART_INFO="<p><strong>Chart:</strong> Unable to detect chart type</p>"
-    fi
+if [ -n "$HELM_RELEASE_NAME" ]; then
+    CHART_INFO="$CHART_INFO<p><strong>Release:</strong> $HELM_RELEASE_NAME</p>"
+fi
+if [ -n "$CHART_VERSION" ]; then
+    CHART_INFO="$CHART_INFO<p><strong>Version:</strong> $CHART_VERSION</p>"
 fi
 
-# Additional deployment info
+# Deployment info
 DEPLOYMENT_INFO=""
 if [ -n "$KUBERNETES_SERVICE_HOST" ]; then
     DEPLOYMENT_INFO="<p><strong>Deployment:</strong> Running in Kubernetes</p>"
@@ -56,7 +26,7 @@ fi
 cat > /www/index.html << EOF
 <html>
 <head>
-    <title>Local Kubernetes Test - $CHART_TYPE</title>
+    <title>Local Kubernetes Test - Demo App</title>
     <style>
         body { font-family: Arial, sans-serif; margin: 40px; background-color: #f5f5f5; }
         .container { background-color: white; padding: 30px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
@@ -76,7 +46,7 @@ cat > /www/index.html << EOF
             $CHART_INFO
             $DEPLOYMENT_INFO
             <p><strong>Namespace:</strong> $NAMESPACE</p>
-            <p><strong>Chart Type Detected:</strong> $CHART_TYPE</p>
+            <p><strong>Chart Type:</strong> $CHART_TYPE</p>
         </div>
         
         <div class="info pod-info">
@@ -87,21 +57,8 @@ cat > /www/index.html << EOF
         
         <div class="info">
             <h3>Registry Information</h3>
-EOF
-
-# Add registry information based on chart type
-if [ "$CHART_TYPE" = "demo-app" ]; then
-    cat >> /www/index.html << EOF
             <p>This container is running an image from the local container registry hosted inside the kubernetes cluster.</p>
-            <p>Additionally, this deployment uses an OCI Helm chart that is also packaged and hosted in the same local registry.</p>
-EOF
-else
-    cat >> /www/index.html << EOF
-            <p>This container is running an image from the local container registry hosted inside the kubernetes cluster.</p>
-EOF
-fi
-
-cat >> /www/index.html << EOF
+            <p>This deployment uses an OCI Helm chart that is also packaged and hosted in the same local registry.</p>
         </div>
         
         <div class="info env-info">
@@ -110,8 +67,8 @@ cat >> /www/index.html << EOF
             <ul>
 EOF
 
-# Add some key environment variables for debugging
-for var in SERVICE_NAME CONTROLLER_NAME DEMO_APP_CHART CHART_NAME HELM_RELEASE_NAME CHART_VERSION; do
+# Add key environment variables for debugging
+for var in CHART_NAME HELM_RELEASE_NAME CHART_VERSION; do
     if [ -n "$(eval echo \$$var)" ]; then
         echo "                <li><strong>$var:</strong> $(eval echo \$$var)</li>" >> /www/index.html
     fi
