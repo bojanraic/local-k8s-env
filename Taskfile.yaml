@@ -361,8 +361,7 @@ tasks:
     cmds:
       - task: validate:tcp-services
       - task: validate:local-registry
-      - task: validate:app
-      - task: validate:print-urls
+      - task: validate:test-app
 
   create-validate-env:
     desc: Create a clean local environment and validate it

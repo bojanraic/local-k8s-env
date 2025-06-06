@@ -1,8 +1,8 @@
-# Default values for demo-app
+# Default values for test-app
 replicaCount: 1
 
 image:
-  repository: demo-app
+  repository: test-app
   pullPolicy: IfNotPresent
   tag: "latest"
 
@@ -23,7 +23,6 @@ podSecurityContext: {}
 securityContext: {}
 
 service:
-  type: ClusterIP
   port: 80
 
 ingress:

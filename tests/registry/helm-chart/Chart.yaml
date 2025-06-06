@@ -1,17 +1,18 @@
 apiVersion: v2
-name: demo-app
-description: A minimal demo application for testing local registry and Helm OCI functionality
+name: test-app
+description: A minimal application Helm chart for testing local container registry and the registry's OCI functionality
 type: application
-version: 0.1.0
-appVersion: "1.0.0"
+version: 1.0.0
+appVersion: "latest"
 icon: file://./icon.svg
 keywords:
-  - demo
   - test
   - registry
+  - oci
+  - helm
 home: https://github.com/bojanraic/local-k8s-env/
 sources:
   - https://github.com/bojanraic/local-k8s-env/
 maintainers:
   - name: Local Environment
-    email: dev@local.env 
+    email: developer@local.env
