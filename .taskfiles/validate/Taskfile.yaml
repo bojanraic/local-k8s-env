@@ -79,26 +79,38 @@ tasks:
           echo "🔄 Deploying test-app from OCI registry..."
           echo "  📋 Using chart version: {{.CHART_VERSION}}"
           
+          # Prepare helm command with base arguments
+          HELM_ARGS=(
+            "oci://{{.REGISTRY_HOST}}/helm-charts/{{.CHART_NAME}}"
+            "--version" "{{.CHART_VERSION}}"
+            "--namespace" "default"
+            "--set" "image.tag={{.EFFECTIVE_IMAGE_TAG}}"
+            "--set" "image.repository={{.REGISTRY_HOST}}/{{.REGISTRY_NAME}}-test"
+            "--set" "ingress.hosts[0].host={{.REGISTRY_NAME}}-test.{{.LOCAL_DOMAIN}}"
+            "--set" "ingress.hosts[0].paths[0].path=/"
+            "--set" "ingress.hosts[0].paths[0].pathType=Prefix"
+            "--set" "ingress.tls[0].hosts[0]={{.REGISTRY_NAME}}-test.{{.LOCAL_DOMAIN}}"
+            "--set" "ingress.tls[0].secretName={{.REGISTRY_NAME}}-test-tls"
+            "--set" "env[0].name=CHART_NAME"
+            "--set" "env[0].value={{.CHART_NAME}}"
+            "--set" "env[1].name=CHART_VERSION"
+            "--set" "env[1].value={{.CHART_VERSION}}"
+            "--set" "env[2].name=HELM_RELEASE_NAME"
+            "--set" "env[2].value={{.RELEASE_NAME}}"
+            "--set" "env[3].name=IMAGE_TAG"
+            "--set" "env[3].value={{.EFFECTIVE_IMAGE_TAG}}"
+          )
+          
+          # Add worker node constraints if conditions are met
+          if [ "{{.RUN_SERVICES_ON_WORKERS_ONLY}}" = "true" ] && [ "{{.WORKERS}}" -gt 0 ]; then
+            echo "  🎯 Scheduling demo app on worker nodes only (workers={{.WORKERS}}, run-services-on-workers-only=true)"
+            HELM_ARGS+=(
+              "--set-string" "nodeSelector.node-role\.kubernetes\.io/worker=true"
+            )
+          fi
+          
           # Install/upgrade from OCI registry
-          helm upgrade --install --wait {{.RELEASE_NAME}} \
-            oci://{{.REGISTRY_HOST}}/helm-charts/{{.CHART_NAME}} \
-            --version {{.CHART_VERSION}} \
-            --namespace default \
-            --set image.tag={{.EFFECTIVE_IMAGE_TAG}} \
-            --set image.repository={{.REGISTRY_HOST}}/{{.REGISTRY_NAME}}-test \
-            --set ingress.hosts[0].host={{.REGISTRY_NAME}}-test.{{.LOCAL_DOMAIN}} \
-            --set ingress.hosts[0].paths[0].path=/ \
-            --set ingress.hosts[0].paths[0].pathType=Prefix \
-            --set ingress.tls[0].hosts[0]={{.REGISTRY_NAME}}-test.{{.LOCAL_DOMAIN}} \
-            --set ingress.tls[0].secretName={{.REGISTRY_NAME}}-test-tls \
-            --set env[0].name=CHART_NAME \
-            --set env[0].value={{.CHART_NAME}} \
-            --set env[1].name=CHART_VERSION \
-            --set env[1].value={{.CHART_VERSION}} \
-            --set env[2].name=HELM_RELEASE_NAME \
-            --set env[2].value={{.RELEASE_NAME}} \
-            --set env[3].name=IMAGE_TAG \
-            --set env[3].value={{.EFFECTIVE_IMAGE_TAG}}
+          helm upgrade --install --wait {{.RELEASE_NAME}} "${HELM_ARGS[@]}"
           
           echo "✅ Test app deployed from OCI chart at https://{{.REGISTRY_NAME}}-test.{{.LOCAL_DOMAIN}}"
         fi
@@ -124,6 +136,7 @@ tasks:
     desc: "Complete test app workflow: build image, package chart, and deploy from OCI registry"
     cmds:
       - task: build-push-image
+      - task: kubeconform-helm-chart
       - task: package-helm-chart
       - task: deploy-test-app
 
@@ -131,7 +144,7 @@ tasks:
     desc: "Validates local registry by running the demo app workflow"
     cmds:
       - task: test-app-workflow
-      - task: print-urls
+      - task: print-url
 
   app:
     desc: Validates test app deployed via Helm release from local registry
@@ -264,6 +277,60 @@ tasks:
           echo ""
         fi
 
+  kubeconform-helm-chart:
+    desc: Validate Helm chart templates with kubeconform (using system-installed kubeconform via mise)
+    silent: true
+    vars:
+      KUBERNETES_VERSION: 1.29.0
+    cmds:
+      - name: Check if kubeconform is installed
+        cmd: |
+          if ! command -v kubeconform &> /dev/null; then
+            echo "❌ kubeconform not found. Please install it with: mise install kubeconform"
+            exit 1
+          fi
+          echo "✅ Using kubeconform: $(kubeconform -v)"
+
+      - name: Template and validate Test Helm chart
+        cmd: |
+          echo "🔍 Validating Test Helm chart with kubeconform..."
+          
+          # Create temporary directory for rendered manifests
+          TEMP_DIR=$(mktemp -d)
+          trap 'rm -rf "$TEMP_DIR"' EXIT
+          
+          # Function to validate a chart
+          validate_chart() {
+            local chart=$1
+            local values_file=$2
+            echo "  🔍 Validating chart: $chart"
+            
+            # Template the chart with complete ingress configuration
+            helm template test-release "$chart" \
+              --namespace default \
+              {{if .values_file -}}--values "$values_file" {{end}}\
+              --set image.tag=test \
+              --set image.repository=test \
+              --set ingress.enabled=true \
+              --set ingress.className=nginx \
+              --set-string 'ingress.hosts[0].host=test.local' \
+              --set 'ingress.hosts[0].paths[0].path=/' \
+              > "$TEMP_DIR/manifests.yaml"
+            
+            # Validate with kubeconform
+            kubeconform -kubernetes-version {{.KUBERNETES_VERSION}} \
+            -schema-location default \
+            -schema-location 'https://raw.githubusercontent.com/datreeio/CRDs-catalog/main/{{.Group}}/{{.ResourceKind}}_{{.ResourceAPIVersion}}.json' \
+            -summary -output json -exit-on-error "$TEMP_DIR/manifests.yaml"
+          }
+          
+          # Validate local charts
+          for chart in $(find {{.ROOT_DIR}}/tests/registry/ -name Chart.yaml -exec dirname {} \;); do
+            validate_chart "$chart" ""
+          done
+          
+          echo "✅ Test Helm chart validated successfully"
+
   test-helm-chart:
     desc: Test the Helm chart templates and lint
     silent: true
@@ -274,12 +341,26 @@ tasks:
         helm lint {{.REG_TEST_DIR}}/helm-chart
         
         echo "  📋 Testing template rendering..."
-        helm template test-app {{.REG_TEST_DIR}}/helm-chart \
-          --set image.tag={{.CR_TEST_IMAGE_TAG}} \
-          --set image.repository={{.REGISTRY_HOST}}/{{.REGISTRY_NAME}}-test \
-          --set ingress.hosts[0].host={{.REGISTRY_NAME}}-test.{{.LOCAL_DOMAIN}} \
-          --set ingress.tls[0].hosts[0]={{.REGISTRY_NAME}}-test.{{.LOCAL_DOMAIN}} \
-          --dry-run > {{.K8S_DIR}}/config/test-app-rendered.yaml
+        
+        # Prepare helm template command with base arguments
+        TEMPLATE_ARGS=(
+          "test-app" "{{.REG_TEST_DIR}}/helm-chart"
+          "--set" "image.tag={{.CR_TEST_IMAGE_TAG}}"
+          "--set" "image.repository={{.REGISTRY_HOST}}/{{.REGISTRY_NAME}}-test"
+          "--set" "ingress.hosts[0].host={{.REGISTRY_NAME}}-test.{{.LOCAL_DOMAIN}}"
+          "--set" "ingress.tls[0].hosts[0]={{.REGISTRY_NAME}}-test.{{.LOCAL_DOMAIN}}"
+          "--dry-run"
+        )
+        
+        # Add worker node constraints if conditions are met
+        if [ "{{.RUN_SERVICES_ON_WORKERS_ONLY}}" = "true" ] && [ "{{.WORKERS}}" -gt 0 ]; then
+          echo "  🎯 Including worker node constraints in template test"
+          TEMPLATE_ARGS+=(
+            "--set" "nodeSelector.node-role\.kubernetes\.io/worker="
+          )
+        fi
+        
+        helm template "${TEMPLATE_ARGS[@]}" > {{.K8S_DIR}}/config/test-app-rendered.yaml
         
         echo "  ✅ Chart templates rendered successfully"
         echo "  📄 Rendered templates saved to {{.K8S_DIR}}/config/test-app-rendered.yaml"

@@ -30,7 +30,7 @@ tasks:
         echo "├── Nodes:"
         echo "│   ├── Control Plane: {{.SERVERS}}"
         echo "│   ├── Workers: {{.WORKERS}}"
-        echo "│   └── Control Plane Scheduling: {{.ALLOW_CP_SCHEDULING}}"
+        echo "│   └── Control Plane Scheduling: {{.ALLOW_CONTROL_PLANE_SCHEDULING}}"
         echo "└── Service Presets Enabled: {{.USE_SERVICE_PRESETS}}"
 
   services:

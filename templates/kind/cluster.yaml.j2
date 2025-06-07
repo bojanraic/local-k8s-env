@@ -60,10 +60,30 @@ nodes:
     kind: InitConfiguration
     nodeRegistration:
       kubeletExtraArgs:
-        node-labels: "ingress-ready=true"
-        {% if nodes.workers == 0 or nodes.get('allow-scheduling-on-control-plane', False) %}
-        register-with-taints: ""  # Allow scheduling on control-plane when no workers or explicitly allowed
-        {% endif %}
+        # Node labels
+        node-labels: "ingress-ready=true,kubernetes.io/hostname=control-plane,node-role=control-plane,node-role=master
+        {%- if nodes.get('labels', {}).get('individual', {}).get('control-plane-' + i|string) -%}
+          {%- for key, value in nodes.labels.individual['control-plane-' + i|string].items() -%}
+            ,{{ key }}={{ value }}
+          {%- endfor -%}
+        {%- elif nodes.get('labels', {}).get('control-plane') -%}
+          {%- for key, value in nodes.labels['control-plane'].items() -%}
+            ,{{ key }}={{ value }}
+          {%- endfor -%}
+        {%- endif -%}
+        "
+        # Node taints
+        {%- set should_taint = True -%}
+        {%- if nodes.workers == 0 or not nodes.get('internal-components-on-control-plane', False) -%}
+          {%- if nodes.get('allow-scheduling-on-control-plane', False) -%}
+            {%- set should_taint = False -%}
+          {%- endif -%}
+        {%- endif -%}
+        {%- if should_taint -%}
+        register-with-taints: "node-role=control-plane:NoSchedule,node-role=master:NoSchedule"
+        {%- else -%}
+        register-with-taints: ""
+        {%- endif %}
 {% endfor %}
 
 # Worker nodes
@@ -80,6 +100,27 @@ nodes:
     containerPath: {{ cacert_file }}
   - hostPath: {{ k8s_dir }}/config/containerd
     containerPath: /etc/containerd/certs.d/{{ registry_name }}.{{ local_domain }}
+{% if nodes.get('labels') or nodes.get('run-services-on-workers-only', False) %}
+  kubeadmConfigPatches:
+  - |
+    kind: JoinConfiguration
+    nodeRegistration:
+      kubeletExtraArgs:
+        node-labels: "kubernetes.io/hostname=worker-{{ i }},node-role=worker
+        {%- if nodes.get('labels', {}).get('individual', {}).get('worker-' + i|string) -%}
+          {%- for key, value in nodes.labels.individual['worker-' + i|string].items() -%}
+            ,{{ key }}={{ value }}
+          {%- endfor -%}
+        {%- elif nodes.get('labels', {}).get('worker') -%}
+          {%- for key, value in nodes.labels.worker.items() -%}
+            ,{{ key }}={{ value }}
+          {%- endfor -%}
+        {%- endif -%}
+        "
+        {%- if nodes.get('run-services-on-workers-only', False) %}
+        register-with-taints: "node-role=worker:NoSchedule"  # Taint worker nodes when run-services-on-workers-only is true
+        {%- endif -%}
+{% endif %}
 {% if not loop.last %}
 
 {% endif %}

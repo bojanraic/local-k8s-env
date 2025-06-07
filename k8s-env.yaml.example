@@ -21,6 +21,29 @@ environment:
     servers: 1 # number of control-plane servers/masters
     workers: 1 # number of worker nodes
     allow-scheduling-on-control-plane: true # whether to allow scheduling on control plane nodes even when workers exist
+    internal-components-on-control-plane: true # whether to force internal components (cert-manager, nginx-ingress, registry) to run only on control-plane nodes
+
+    labels: # optional: custom labels to apply to nodes
+      control-plane: # labels for ALL control-plane nodes (applied to each)
+        tier: "control"
+        environment: "dev"
+      worker: # labels for ALL worker nodes (applied to each)
+        tier: "compute"
+        environment: "dev"
+      # Alternative: specify labels per individual node (overrides global labels)
+      # individual:
+      #   control-plane-0: # labels for first control-plane node
+      #     tier: "control"
+      #     zone: "us-west-1a"
+      #   control-plane-1: # labels for second control-plane node  
+      #     tier: "control"
+      #     zone: "us-west-1b"
+      #   worker-0: # labels for first worker node
+      #     tier: "compute"
+      #     zone: "us-west-1a"
+      #   worker-1: # labels for second worker node
+      #     tier: "compute" 
+      #     zone: "us-west-1b"
 
   local-ip: 192.168.0.10 # local ip, mapping to the host IP to use for DNS resolution and wildcard certificates
   local-domain: dev.me # a domain name to use for custom dns resolution and wildcard certificates 
@@ -50,6 +73,8 @@ environment:
     - dnsmasq: "2.91"
 
   use-service-presets: true # whether or not to use the preset values for services; leave true unless you have a good reason to override the defaults
+  run-services-on-workers-only: false # whether to force application services to run only on worker nodes (when workers > 0)
+
   services: # additional services to deploy within the cluster 
     - name: mysql
       enabled: false # whether or not to install this component and expose the port(s)
@@ -122,3 +147,22 @@ environment:
         chart: bitnami/valkey # the chart to use
         # renovate: datasource=helm depName=valkey
         version: 3.0.9
+
+# Example a multi-node setup with clean separation of infrastructure and application workloads:
+# environment:
+#   name: my-cluster
+#   nodes:
+#     servers: 3
+#     workers: 3
+#     allow-scheduling-on-control-plane: true
+#     internal-components-on-control-plane: true  # cert-manager, nginx-ingress, registry on control-plane
+#     labels:
+#       control-plane:
+#         tier: "infra"
+#       worker:
+#         tier: "app"
+#   run-services-on-workers-only: true  # mysql, postgres, etc. on workers only
+#   
+#   # This creates a clean separation:
+#   # - Control-plane: Kubernetes system + internal components (cert-manager, nginx-ingress, registry)
+#   # - Workers: Application services (databases, message queues, etc.)

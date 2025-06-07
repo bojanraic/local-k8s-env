@@ -431,11 +431,35 @@ tasks:
     cmds:
       - echo "🔍 Checking cluster status..."
       - |
-        # Check if cluster exists
+        # Check if cluster exists and is running
         if ! {{.PROVIDER_BINARY}} get clusters 2>/dev/null | grep -q "{{.CLUSTER_NAME}}"; then
           echo "❌ Cluster '{{.CLUSTER_NAME}}' does not exist"
           exit 1
         fi
+        
+        # Get cluster status
+        CLUSTER_STATUS=$({{.PROVIDER_BINARY}} get clusters 2>/dev/null | grep "{{.CLUSTER_NAME}}" | awk '{print $2}')
+        if [[ "$CLUSTER_STATUS" != "Running" ]]; then
+          if [[ -z "$CLUSTER_STATUS" ]]; then
+            # If status is empty, check if control plane container is running
+            if {{.RUNTIME_BINARY}} ps --filter name={{.CLUSTER_NAME}}-control-plane --format '{{.Status}}' | grep -q "Up"; then
+              echo "✅ Cluster '{{.CLUSTER_NAME}}' is running (detected via container status)"
+            else
+              echo "❌ Cluster '{{.CLUSTER_NAME}}' is not running"
+              exit 1
+            fi
+          else
+            echo "❌ Cluster '{{.CLUSTER_NAME}}' is not running (status: $CLUSTER_STATUS)"
+            exit 1
+          fi
+        else
+          echo "✅ Cluster '{{.CLUSTER_NAME}}' is running"
+        fi
+        
+        # Show DNS status
+        echo -e "\n📊 DNS Status:"
+        DNS_STATUS=$({{.RUNTIME_BINARY}} ps --filter name={{.DNS_CONTAINER_NAME}} --format '{{`{{.Status}}`}}' || echo "Not running")
+        echo "└── {{.DNS_CONTAINER_NAME}}: $DNS_STATUS"
         
         # Check if kubeconfig exists
         if [ ! -f "{{.KUBECONFIG_PATH}}" ]; then
@@ -452,9 +476,35 @@ tasks:
         
         echo "✅ Cluster '{{.CLUSTER_NAME}}' is running"
         
-        # Show node status - using a more reliable approach
+        # Show node status with proper alignment
         echo -e "\n📊 Node Status:"
-        kubectl --kubeconfig {{.KUBECONFIG_PATH}} get nodes --no-headers 2>/dev/null | awk '{print "├── " $1 "\t" $2 "\t" "Roles: " $3 "\t" "Age: " $4}' || echo "├── No nodes found"
+        # Get nodes and format with fixed-width columns
+        kubectl --kubeconfig {{.KUBECONFIG_PATH}} get nodes --no-headers 2>/dev/null | \
+          awk '{
+            # Calculate padding for node name (minimum 20 chars)
+            node = $1;
+            status = $2;
+            roles = "";
+            age = "";
+            
+            # Extract roles if available (might be in different columns)
+            for (i=3; i<=NF; i++) {
+              if ($i ~ /^Ready|NotReady|SchedulingDisabled/) {
+                status = $i;
+              } else if ($i ~ /control-plane|worker|master/) {
+                if (roles != "") roles = roles ", ";
+                roles = roles $i;
+              } else if ($i ~ /^[0-9]+[a-z]+$/) {
+                age = $i;
+              }
+            }
+            
+            # Format the output with fixed width columns
+            if (roles == "") {
+              roles = "<none>";
+            }
+            printf "├── %-25s %-10s %-25s %s\n", node, status, "Roles: " roles, "Age: " age;
+          }' || echo "├── No nodes found"
         
         # Show namespace status
         echo -e "\n📊 Namespace Status:"
@@ -476,31 +526,149 @@ tasks:
           echo "├── ingress-nginx not installed"
         fi
         
-        # Show enabled services status
-        echo -e "\n📊 Enabled Services Status:"
-        ENABLED_SERVICES=($(yq e '.environment.services[] | select(.enabled == true) | .name' {{.CONFIG_FILE}} 2>/dev/null || echo ""))
-        if [ ${#ENABLED_SERVICES[@]} -gt 0 ]; then
-          for SERVICE in "${ENABLED_SERVICES[@]}"; do
-            NAMESPACE=$(yq e ".environment.services[] | select(.name == \"$SERVICE\") | .namespace // .name" {{.CONFIG_FILE}})
-            echo "├── Service: $SERVICE (namespace: $NAMESPACE)"
-            if kubectl --kubeconfig {{.KUBECONFIG_PATH}} get namespace $NAMESPACE >/dev/null 2>&1; then
-              kubectl --kubeconfig {{.KUBECONFIG_PATH}} get pods -n $NAMESPACE --no-headers 2>/dev/null | awk '{print "│   ├── " $1 "\t" $3 "/" $2 "\t" "Restarts: " $4 "\t" "Age: " $5}' || echo "│   ├── No pods found"
-              
-              # Show service endpoints
-              echo "│   └── Endpoints:"
-              kubectl --kubeconfig {{.KUBECONFIG_PATH}} get service -n $NAMESPACE --no-headers 2>/dev/null | awk '{print "│       ├── " $1 "\t" "Type: " $2 "\t" "Cluster-IP: " $3 "\t" "Ports: " $5}' || echo "│       ├── No services found"
-            else
-              echo "│   └── Namespace not found"
-            fi
-          done
+        # Show registry status
+        echo -e "\n📊 Registry Status:"
+        if kubectl --kubeconfig {{.KUBECONFIG_PATH}} get namespace registry >/dev/null 2>&1; then
+          # Show registry pods
+          echo "├── Pods:"
+          kubectl --kubeconfig {{.KUBECONFIG_PATH}} get pods -n registry --no-headers 2>/dev/null | awk '{print "│   ├── " $1 "\t" $3 "/" $2 "\t" "Restarts: " $4 "\t" "Age: " $5}' || echo "│   └── No pods found"
+          
+          # Show registry service
+          echo "├── Services:"
+          kubectl --kubeconfig {{.KUBECONFIG_PATH}} get svc -n registry --no-headers 2>/dev/null | awk '{print "│   ├── " $1 "\t" "Type: " $2 "\t" "Cluster-IP: " $3 "\t" "Ports: " $5}' || echo "│   └── No services found"
+          
+          # Show registry ingress if exists
+          echo "└── Ingress:"
+          INGRESS=$(kubectl --kubeconfig {{.KUBECONFIG_PATH}} get ingress -n registry --no-headers 2>/dev/null || echo "")
+          if [ -n "$INGRESS" ]; then
+            INGRESS_NAME=$(echo "$INGRESS" | awk '{print $1}')
+            HOSTS=$(kubectl --kubeconfig {{.KUBECONFIG_PATH}} get ingress -n registry $INGRESS_NAME -o jsonpath='{.spec.rules[*].host}' 2>/dev/null || echo "")
+            ADDRESS=$(kubectl --kubeconfig {{.KUBECONFIG_PATH}} get ingress -n registry $INGRESS_NAME -o jsonpath='{.status.loadBalancer.ingress[0].ip}' 2>/dev/null || echo "N/A")
+            echo "    ├── Name: $INGRESS_NAME"
+            echo "    ├── Hosts: $HOSTS"
+            echo "    └── Address: $ADDRESS"
+          else
+            echo "    └── No ingress configured"
+          fi
         else
-          echo "├── No enabled services found"
+          echo "├── Registry not installed"
         fi
         
-        # Show DNS status
-        echo -e "\n📊 DNS Status:"
-        DNS_STATUS=$({{.RUNTIME_BINARY}} ps --filter name={{.DNS_CONTAINER_NAME}} --format '{{`{{.Status}}`}}' || echo "Not running")
-        echo "└── {{.DNS_CONTAINER_NAME}}: $DNS_STATUS"
+        # Show non-system namespaces
+        echo -e "\n📊 User Namespaces:"
+        # List of system namespaces to exclude
+        SYSTEM_NS=("kube-system" "kube-public" "kube-node-lease" "local-path-storage" "cert-manager" "ingress-nginx" "registry")
+        
+        # Get all namespaces and filter out system ones
+        ALL_NAMESPACES=$(kubectl --kubeconfig {{.KUBECONFIG_PATH}} get ns --no-headers -o custom-columns=":metadata.name" 2>/dev/null || echo "")
+        
+        if [ -z "$ALL_NAMESPACES" ]; then
+          echo "├── No namespaces found"
+        else
+          FOUND_USER_NS=false
+          
+          for NS in $ALL_NAMESPACES; do
+            # Skip system namespaces
+            if printf '%s\n' "${SYSTEM_NS[@]}" | grep -q "^${NS}$"; then
+              continue
+            fi
+            
+            FOUND_USER_NS=true
+            echo "├── Namespace: $NS"
+            
+            # Show pods in the namespace
+            PODS=$(kubectl --kubeconfig {{.KUBECONFIG_PATH}} get pods -n $NS --no-headers 2>/dev/null || echo "")
+            if [ -n "$PODS" ]; then
+              echo "│   ├── Pods:"
+              echo "$PODS" | awk -v prefix="│   │   ├──" '{print prefix, $1, $3 "/" $2, "Restarts:", $4, "Age:", $5}'
+            fi
+            
+            # Show services in the namespace
+            SERVICES=$(kubectl --kubeconfig {{.KUBECONFIG_PATH}} get svc -n $NS --no-headers 2>/dev/null || echo "")
+            if [ -n "$SERVICES" ]; then
+              echo "│   ├── Services:"
+              echo "$SERVICES" | awk -v prefix="│   │   ├──" '{print prefix, $1, "Type:", $2, "Cluster-IP:", $3, "Ports:", $5}'
+            fi
+            
+            # Show ingresses in the namespace
+            INGRESSES=$(kubectl --kubeconfig {{.KUBECONFIG_PATH}} get ingress -n $NS --no-headers 2>/dev/null || echo "")
+            if [ -n "$INGRESSES" ]; then
+              echo "│   └── Ingresses:"
+              echo "$INGRESSES" | while read -r line; do
+                INGRESS_NAME=$(echo "$line" | awk '{print $1}')
+                HOSTS=$(kubectl --kubeconfig {{.KUBECONFIG_PATH}} get ingress -n $NS $INGRESS_NAME -o jsonpath='{.spec.rules[*].host}' 2>/dev/null || echo "")
+                ADDRESS=$(kubectl --kubeconfig {{.KUBECONFIG_PATH}} get ingress -n $NS $INGRESS_NAME -o jsonpath='{.status.loadBalancer.ingress[0].ip}' 2>/dev/null || echo "N/A")
+                echo "        ├── $INGRESS_NAME"
+                echo "        │   ├── Hosts: $HOSTS"
+                echo "        │   └── Address: $ADDRESS"
+              done
+            fi
+          done
+          
+          if [ "$FOUND_USER_NS" = "false" ]; then
+            echo "├── No user namespaces found"
+          fi
+        fi
+        
+        # Show enabled services status
+        echo -e "\n📊 Enabled Services Status:"
+        
+        # Get all enabled services and group them by namespace
+        declare -A NAMESPACE_SERVICES
+        while IFS= read -r service; do
+          if [ -n "$service" ]; then
+            ns=$(yq e ".environment.services[] | select(.name == \"$service\") | .namespace // .name" {{.CONFIG_FILE}} 2>/dev/null || echo "")
+            if [ -n "$ns" ]; then
+              NAMESPACE_SERVICES["$ns"]+=" $service"
+            fi
+          fi
+        done < <(yq e '.environment.services[] | select(.enabled == true) | .name' {{.CONFIG_FILE}} 2>/dev/null || echo "")
+        
+        if [ ${#NAMESPACE_SERVICES[@]} -eq 0 ]; then
+          echo "├── No enabled services found"
+        else
+          for NAMESPACE in "${!NAMESPACE_SERVICES[@]}"; do
+            echo "├── Namespace: $NAMESPACE"
+            
+            # Show all pods in the namespace
+            echo "│   ├── Pods:"
+            PODS=$(kubectl --kubeconfig {{.KUBECONFIG_PATH}} get pods -n $NAMESPACE --no-headers 2>/dev/null || echo "")
+            if [ -n "$PODS" ]; then
+              echo "$PODS" | awk '{print "│   │   ├── " $1 "\t" $3 "/" $2 "\t" "Restarts: " $4 "\t" "Age: " $5}'
+            else
+              echo "│   │   └── No pods found"
+            fi
+            
+            # Show all services in the namespace
+            echo "│   ├── Services:"
+            SERVICES=$(kubectl --kubeconfig {{.KUBECONFIG_PATH}} get svc -n $NAMESPACE --no-headers 2>/dev/null || echo "")
+            if [ -n "$SERVICES" ]; then
+              echo "$SERVICES" | awk '{print "│   │   ├── " $1 "\t" "Type: " $2 "\t" "Cluster-IP: " $3 "\t" "Ports: " $5}'
+            else
+              echo "│   │   └── No services found"
+            fi
+            
+            # Show all ingresses in the namespace
+            echo "│   ├── Ingresses:"
+            INGRESSES=$(kubectl --kubeconfig {{.KUBECONFIG_PATH}} get ingress -n $NAMESPACE --no-headers 2>/dev/null || echo "")
+            if [ -n "$INGRESSES" ]; then
+              echo "$INGRESSES" | while read -r line; do
+                INGRESS_NAME=$(echo "$line" | awk '{print $1}')
+                HOSTS=$(kubectl --kubeconfig {{.KUBECONFIG_PATH}} get ingress -n $NAMESPACE $INGRESS_NAME -o jsonpath='{.spec.rules[*].host}' 2>/dev/null || echo "")
+                ADDRESS=$(kubectl --kubeconfig {{.KUBECONFIG_PATH}} get ingress -n $NAMESPACE $INGRESS_NAME -o jsonpath='{.status.loadBalancer.ingress[0].ip}' 2>/dev/null || echo "N/A")
+                echo "│   │   ├── $INGRESS_NAME"
+                echo "│   │   │   ├── Hosts: $HOSTS"
+                echo "│   │   │   └── Address: $ADDRESS"
+              done
+            else
+              echo "│   │   └── No ingresses found"
+            fi
+            
+            # List enabled services in this namespace
+            echo -n "│   └── Enabled Services: "
+            echo "${NAMESPACE_SERVICES[$NAMESPACE]}" | xargs
+          done
+        fi
         
         echo -e "\n✅ Status check complete"
   

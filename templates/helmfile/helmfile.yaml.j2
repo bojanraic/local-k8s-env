@@ -18,8 +18,43 @@ releases:
             namespace: cert-manager
         prometheus:
           enabled: false
+        # Webhook configuration with conditional node selector
         webhook:
           timeoutSeconds: 30
+          {% if nodes.get('allow-scheduling-on-control-plane', true) and nodes.get('internal-components-on-control-plane', true) %}
+          # Only schedule on control plane if explicitly allowed
+          nodeSelector:
+            node-role.kubernetes.io/control-plane: ""
+          {% endif %}
+        
+        # CA Injector configuration with conditional node selector
+        cainjector:
+          enabled: true
+          {% if nodes.get('allow-scheduling-on-control-plane', true) and nodes.get('internal-components-on-control-plane', true) %}
+          # Only schedule on control plane if explicitly allowed
+          nodeSelector:
+            node-role.kubernetes.io/control-plane: ""
+          {% endif %}
+        
+        # Node selector for main cert-manager pods
+        {% if nodes.get('allow-scheduling-on-control-plane', true) and nodes.get('internal-components-on-control-plane', true) %}
+        # Only schedule on control plane if explicitly allowed
+        nodeSelector:
+          node-role.kubernetes.io/control-plane: ""
+        {% endif %}
+        tolerations:
+          - key: "node.kubernetes.io/not-ready"
+            operator: "Exists"
+            effect: "NoSchedule"
+          - key: "node.kubernetes.io/unreachable"
+            operator: "Exists"
+            effect: "NoSchedule"
+          {% if nodes.get('allow-scheduling-on-control-plane', true) and nodes.get('internal-components-on-control-plane', true) %}
+          # Only add control plane toleration if explicitly allowed
+          - key: "node-role.kubernetes.io/control-plane"
+            operator: "Exists"
+            effect: "NoSchedule"
+          {% endif %}
 
   # Ingress NGINX Controller
   - name: ingress-nginx
@@ -38,12 +73,15 @@ releases:
             annotations: {}
           nodeSelector:
             ingress-ready: "true"
+            {% if nodes.get('allow-scheduling-on-control-plane', true) and nodes.get('internal-components-on-control-plane', true) %}
+            node-role.kubernetes.io/control-plane: ""
+            {% endif %}
           tolerations:
             - key: node-role.kubernetes.io/master
-              operator: Equal
+              operator: Exists
               effect: NoSchedule
             - key: node-role.kubernetes.io/control-plane
-              operator: Equal
+              operator: Exists
               effect: NoSchedule
           publishService:
             enabled: false
@@ -86,6 +124,19 @@ releases:
       - controllers:
           registry:
             type: statefulset
+            {% if nodes.get('allow-scheduling-on-control-plane', true) and nodes.get('internal-components-on-control-plane', true) %}
+            # Only schedule on control plane if explicitly allowed
+            pod:
+              nodeSelector:
+                node-role.kubernetes.io/control-plane: ""
+              tolerations:
+                - key: "node-role.kubernetes.io/control-plane"
+                  operator: "Exists"
+                  effect: "NoSchedule"
+                - key: "node-role.kubernetes.io/master"
+                  operator: "Exists"
+                  effect: "NoSchedule"
+            {% endif %}
             containers:
               app:
                 image:
@@ -141,10 +192,25 @@ releases:
       - ingress-nginx/ingress-nginx
       - registry/registry
     values:
-      - # Base configuration
-        {{ service.base_values | to_yaml | indent(8) }}
+      - {{ service.base_values | to_yaml | indent(8) | trim }}
       {% if service.custom_values %}
-      - # Custom configuration
-        {{ service.custom_values | to_yaml | indent(8) }}
+      - {{ service.custom_values | to_yaml | indent(8) | trim }}
+      {% endif %}
+      {% if run_services_on_workers_only and nodes.workers > 0 %}
+      - nodeSelector:
+          node-role.kubernetes.io/worker: "true"
+        tolerations:
+          - key: "node-role.kubernetes.io/worker"
+            operator: "Exists"
+            effect: "NoSchedule"
+      {% endif %}
+      {% if service.get('storage', {}).get('size') is defined %}
+      - persistence:
+          enabled: true
+          size: {{ service.storage.size }}
+      {% elif service.get('storage', {}).get('enabled', False) %}
+      - persistence:
+          enabled: true
+          size: {{ service.storage.get('size', '10Gi') }}
       {% endif %}
   {% endfor %} 

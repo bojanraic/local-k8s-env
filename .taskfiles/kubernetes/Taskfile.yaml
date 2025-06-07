@@ -307,14 +307,14 @@ tasks:
     silent: true
     cmds:
       - |
-        if [ "{{.ALLOW_CP_SCHEDULING}}" = "true" ]; then
+        if [ "{{.ALLOW_CONTROL_PLANE_SCHEDULING}}" = "true" ]; then
           echo "🔄 Enabling scheduling on control plane nodes..."
           # Remove taint if it exists, suppress errors
           kubectl --kubeconfig {{.KUBECONFIG_PATH}} taint nodes --all node-role.kubernetes.io/control-plane:NoSchedule- 2>/dev/null || true
           echo "✅ Scheduling enabled on control plane nodes"
         else
           echo "🔄 Disabling scheduling on control plane nodes..."
-          kubectl --kubeconfig {{.KUBECONFIG_PATH}} taint nodes --selector node-role.kubernetes.io/control-plane node-role.kubernetes.io/control-plane:NoSchedule
+          kubectl --kubeconfig {{.KUBECONFIG_PATH}} taint nodes --overwrite --selector node-role.kubernetes.io/control-plane node-role.kubernetes.io/control-plane:NoSchedule
           echo "✅ Scheduling disabled on control plane nodes"
         fi
 

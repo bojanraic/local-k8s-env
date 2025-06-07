@@ -53,9 +53,20 @@ def setup_jinja_env():
     return env
 
 def render_template(template_name, context):
-    env = setup_jinja_env()
-    template = env.get_template(template_name)
-    return template.render(**context)
+    try:
+        env = setup_jinja_env()
+        template = env.get_template(template_name)
+        result = template.render(**context)
+        return result
+    except Exception as e:
+        print(f"\n[ERROR] Error rendering template: {template_name}")
+        print(f"[ERROR] Error type: {type(e).__name__}")
+        print(f"[ERROR] Error details: {str(e)}")
+        if hasattr(e, 'lineno') and hasattr(e, 'filename'):
+            print(f"[ERROR] Error at {e.filename}, line {e.lineno}")
+        if hasattr(e, 'message'):
+            print(f"[ERROR] Message: {e.message}")
+        raise
 
 def prepare_context(config):
     # Load service ports and presets from file
@@ -159,6 +170,7 @@ def prepare_context(config):
         'service_ports': service_ports,
         'service_values_presets': service_values_presets,
         'use_service_presets': use_service_presets,
+        'run_services_on_workers_only': env.get('run-services-on-workers-only', False),
         'cacert_file': CACERT_FILE,
         'k8s_dir': f"{base_dir}/{env['name']}",
         'mounts': [
@@ -168,7 +180,8 @@ def prepare_context(config):
         'internal_domain': internal_domain,
         'internal_host': internal_host,
         'provider': env['provider'],
-        'allow_cp_scheduling': env['nodes'].get('allow-scheduling-on-control-plane', False),
+        'allow_control_plane_scheduling': env['nodes'].get('allow-scheduling-on-control-plane', False),
+        'internal_components_on_control_plane': env['nodes'].get('internal-components-on-control-plane', False),
     }
     
     # Ensure all paths in mounts are absolute for KinD

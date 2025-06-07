@@ -8,13 +8,24 @@ A robust and flexible local Kubernetes development environment setup using KinD,
 - 📦 Built-in local container registry with TLS support
 - 🔒 Automatic TLS certificate generation for local domains
 - 🌐 Local wildcard DNS resolution for `<local-domain>` (configurable) domain
+- 📊 **Comprehensive Cluster Status**: Detailed view of cluster resources with `task status`
+  - Node status with role-based filtering
+  - Service status grouped by namespace
+  - Ingress and registry information
+  - User namespaces overview
+  - DNS and service health checks
+- 🎯 **Advanced Node Scheduling**: Flexible node labeling and workload placement
+  - Custom node labels for control-plane and worker nodes
+  - Infrastructure components on control-plane scheduling
+  - Application services on workers-only scheduling
 - 🔧 Support for common development services:
   - PostgreSQL
   - MySQL
   - MongoDB
   - RabbitMQ
   - Valkey (Redis-compatible)
-- 🛠️ Helm-based service deployment
+- 🛠️ Helm-based service deployment from public repositories (Bitnami, etc.)
+- 📋 **OCI Helm Chart Validation**: Local registry testing with OCI artifact storage
 - ⚙️ Configurable via single YAML file
 - 🔄 Automated dependency management with Renovate
 - 💻 Shell completions for all applicable tools
@@ -54,6 +65,41 @@ All other dependencies are automatically managed by mise:
 ```bash
 git clone <repository-url>
 cd <repository-name>
+```
+
+## Checking Cluster Status
+
+Use the `status` command to get a comprehensive overview of your local Kubernetes environment:
+
+```bash
+task status
+```
+
+This will display:
+
+- **Cluster Status**: Overall health of the Kubernetes cluster
+- **DNS Status**: Status of the local DNS service
+- **Node Status**: List of all nodes with their roles and status
+- **Namespace Status**: Overview of all namespaces
+- **Service Status**: Status of system services (cert-manager, ingress-nginx, registry)
+- **User Namespaces**: Detailed view of user-created namespaces with pods and services
+- **Enabled Services**: Status of enabled services from your configuration
+
+Example output:
+```
+📊 Node Status:
+├── dev-me-control-plane      Ready      Roles: control-plane      Age: 71m
+├── dev-me-worker             Ready      Roles: worker             Age: 71m
+
+📊 Registry Status:
+├── Pods:
+│   ├── registry-0     Running/1/1     Restarts: 0     Age: 68m
+├── Services:
+│   ├── registry       Type: ClusterIP Cluster-IP: 10.11.175.143       Ports: 5000/TCP
+└── Ingress:
+    ├── Name: registry
+    ├── Hosts: cr.dev.me
+    └── Address: 192.168.1.100
 ```
 
 2. Install mise and initialize the environment:
@@ -132,6 +178,18 @@ task utils:remove-completions
 ```
 
 ## Help and Information
+
+### Task Help
+
+List all available tasks:
+```bash
+task --list
+```
+
+Get detailed help for a specific task:
+```bash
+task help <task-name>
+```
 
 The environment includes comprehensive help tasks. To see available information:
 
@@ -260,10 +318,14 @@ The `.local` directory (configurable via `base-dir` in `k8s-env.yaml`) is create
 
 ## Service Management
 
+The environment manages development services (databases, message queues, etc.) through Helm deployments from public repositories.
+
 Services are defined in two places:
 
 1. `k8s-env.yaml`: Service enablement and specific configurations
 2. `templates/service_presets.yaml`: Default service configurations and ports
+
+> **Note**: These services are deployed from public Helm repositories (like Bitnami) using Helmfile, not from the local OCI registry. The local OCI registry is used for validation and custom application development.
 
 ### Service Presets
 
@@ -340,6 +402,184 @@ To use it:
 
 > Note: Replace `me.local` with your configured `local-domain` value from `k8s-env.yaml`
 
+## Node Scheduling and Workload Placement
+
+The environment supports advanced node scheduling configurations to separate infrastructure and application workloads.
+
+### Node Labels
+
+Configure custom labels for nodes to enable targeted scheduling:
+
+```yaml
+nodes:
+  servers: 3
+  workers: 3
+  labels:
+    control-plane: # Applied to ALL control-plane nodes
+      tier: "infrastructure"
+      environment: "production"
+    worker: # Applied to ALL worker nodes
+      tier: "application"
+      environment: "production"
+    individual: # Override specific nodes
+      control-plane-0:
+        zone: "us-west-1a"
+        primary: "true"
+      worker-0:
+        zone: "us-west-1a"
+        workload-type: "cpu-intensive"
+```
+
+### Scheduling Flags
+
+#### `internal-components-on-control-plane`
+Forces infrastructure components (cert-manager, nginx-ingress, registry) to run only on control-plane nodes:
+
+```yaml
+nodes:
+  allow-scheduling-on-control-plane: true
+  internal-components-on-control-plane: true
+```
+
+**Use cases:**
+- Reserve worker nodes for application workloads
+- Ensure infrastructure stability on control-plane
+- Single-node development environments
+
+#### `run-services-on-workers-only`
+Forces application services (databases, message queues) to run only on worker nodes:
+
+```yaml
+run-services-on-workers-only: true  # Only when workers > 0
+```
+
+**Use cases:**
+- Clean separation of infrastructure and applications
+- Dedicated worker nodes for data services
+- Multi-node production-like environments
+
+### Scheduling Patterns
+
+#### Single-Node Development
+```yaml
+nodes:
+  servers: 1
+  workers: 0
+  allow-scheduling-on-control-plane: true
+  internal-components-on-control-plane: true
+# Everything runs on control-plane
+```
+
+#### Multi-Node with Separation
+```yaml
+nodes:
+  servers: 3
+  workers: 3
+  allow-scheduling-on-control-plane: true
+  internal-components-on-control-plane: true
+run-services-on-workers-only: true
+
+# Result:
+# - Control-plane: Kubernetes system + infrastructure components
+# - Workers: Application services and user workloads
+```
+
+### Using Node Labels in Your Applications
+
+When deploying your own applications, use the configured labels:
+
+```yaml
+# Example deployment targeting worker nodes
+apiVersion: apps/v1
+kind: Deployment
+spec:
+  template:
+    spec:
+      nodeSelector:
+        tier: "application"
+      # or
+      nodeSelector:
+        node-role.kubernetes.io/worker: ""
+```
+
+## OCI Registry and Helm Chart Validation
+
+The environment includes comprehensive validation workflows for testing OCI registry functionality with Helm charts stored as OCI artifacts.
+
+> **Note**: This is separate from the regular service deployment (MySQL, PostgreSQL, etc.), which uses standard Helm repositories like Bitnami. The OCI validation specifically tests the local registry's ability to store and deploy Helm charts as OCI artifacts.
+
+### Validation Workflow
+
+The validation system tests the complete OCI container and Helm chart lifecycle:
+
+1. **Image Build & Push**: Builds a test application and pushes to local registry
+2. **Chart Packaging**: Packages a demo Helm chart as OCI artifact and pushes to local registry
+3. **OCI Deployment**: Deploys the chart from the local OCI registry (not from public repos)
+4. **Validation**: Tests connectivity and functionality of the OCI-deployed application
+
+### Running Validation
+
+```bash
+# Complete validation workflow
+task validate:local-registry
+
+# Individual validation steps
+task validate:build-push-image      # Build and push test image
+task validate:package-helm-chart    # Package chart as OCI artifact
+task validate:deploy-test-app       # Deploy from OCI registry
+task validate:app                   # Test deployed application
+```
+
+### Demo Application
+
+The validation includes a demo application that:
+- Displays environment information (pod name, image tag, chart version)
+- Demonstrates OCI registry integration
+- Tests Helm chart templating and deployment
+- Validates TLS certificate generation
+- Respects node scheduling constraints
+
+### OCI Registry Features
+
+- **Helm Chart Storage**: Store and version Helm charts as OCI artifacts
+- **Multi-Architecture Support**: Compatible with different architectures
+- **TLS Security**: Secure registry with automatic certificate management
+- **Local Development**: No external dependencies for chart development
+
+### Two Types of Helm Deployments
+
+The environment supports two distinct Helm deployment patterns:
+
+#### 1. **Service Deployment** (MySQL, PostgreSQL, etc.)
+Standard Helm deployment from public repositories:
+```bash
+# These are deployed automatically via Helmfile from public repos
+# Example: PostgreSQL from Bitnami repository
+helm install postgres bitnami/postgresql --version 16.7.9
+```
+
+#### 2. **OCI Chart Deployment** (Validation & Custom Apps)
+Helm charts stored and deployed as OCI artifacts from local registry:
+```bash
+# 1. Develop your Helm chart
+helm create my-app
+
+# 2. Test locally
+helm template my-app ./my-app
+
+# 3. Package and push to local OCI registry
+helm package ./my-app
+helm push my-app-0.1.0.tgz oci://cr.dev.me/helm-charts
+
+# 4. Deploy from local OCI registry
+helm install my-app oci://cr.dev.me/helm-charts/my-app --version 0.1.0
+```
+
+**Key Differences:**
+- **Services**: Use public Helm repositories (Bitnami, etc.) via Helmfile
+- **OCI Validation**: Uses local registry to store/deploy charts as OCI artifacts
+- **Use Cases**: Services for infrastructure, OCI for custom application development
+
 ## Troubleshooting
 
 1. **DNS Resolution Issues**
@@ -353,6 +593,16 @@ To use it:
 3. **Service Access Issues**
    - Validate TCP connectivity: `task validate:tcp-services`
    - Verify ingress: `kubectl get ingress -A`
+
+4. **Node Scheduling Issues**
+   - Check node labels: `kubectl get nodes --show-labels`
+   - Verify pod placement: `kubectl get pods -o wide`
+   - Review scheduling constraints: `kubectl describe pod <pod-name>`
+
+5. **OCI Registry Issues**
+   - Test registry connectivity: `docker pull cr.dev.me/test:latest`
+   - Verify Helm OCI support: `helm registry login cr.dev.me`
+   - Check chart availability: `helm search repo oci://cr.dev.me/helm-charts`
 
 ## Contributing
 
@@ -492,6 +742,38 @@ environment:
 - **Default**: true
 - **Example**: true
 
+##### `nodes.internal-components-on-control-plane`
+- **Type**: boolean
+- **Description**: Whether to force internal components (cert-manager, nginx-ingress, registry) to run only on control-plane nodes.
+- **Default**: false
+- **Example**: true
+- **Notes**: Requires `allow-scheduling-on-control-plane: true` to be effective. Useful for reserving worker nodes for application workloads.
+
+##### `nodes.labels`
+- **Type**: object
+- **Description**: Custom labels to apply to nodes for scheduling purposes.
+- **Example**:
+  ```yaml
+  labels:
+    control-plane: # Labels for ALL control-plane nodes
+      tier: "infrastructure"
+      environment: "production"
+    worker: # Labels for ALL worker nodes
+      tier: "application"
+      environment: "production"
+    individual: # Override specific nodes
+      control-plane-0:
+        zone: "us-west-1a"
+        primary: "true"
+      worker-0:
+        zone: "us-west-1a"
+        workload-type: "cpu-intensive"
+  ```
+- **Notes**: 
+  - `control-plane` and `worker` labels are applied to all nodes of that type
+  - `individual` labels override global labels for specific nodes
+  - Node names follow the pattern: `control-plane-0`, `control-plane-1`, `worker-0`, `worker-1`, etc.
+
 #### Network Configuration
 
 ##### `local-ip`
@@ -550,6 +832,16 @@ environment:
 - **Default**: true
 - **Example**: true
 - **Notes**: Leave true unless you have a good reason to override the defaults.
+
+##### `run-services-on-workers-only`
+- **Type**: boolean
+- **Description**: Whether to force application services to run only on worker nodes (when workers > 0).
+- **Default**: false
+- **Example**: true
+- **Notes**: 
+  - Only takes effect when `workers > 0`, otherwise services can run anywhere
+  - Useful for separating infrastructure (control-plane) from application workloads (workers)
+  - Applies to all enabled services in the `services` array
 
 ##### `services`
 - **Type**: array of objects
@@ -627,6 +919,7 @@ environment:
 
 ### Example Configuration
 
+#### Basic Single-Node Development
 ```yaml
 environment:
   name: dev-me
@@ -640,12 +933,13 @@ environment:
   kubernetes:
     api-port: 6443
     image: kindest/node
-    tag: v1.32.3
+    tag: v1.33.1
 
   nodes:
     servers: 1
-    workers: 1
+    workers: 0
     allow-scheduling-on-control-plane: true
+    internal-components-on-control-plane: true
 
   local-ip: 192.168.0.10
   local-domain: dev.me
@@ -659,9 +953,9 @@ environment:
       size: 15Gi
 
   internal-components:
-    - cert-manager: "v1.17.1"
-    - app-template: "3.7.3"
-    - nginx-ingress: "4.12.1"
+    - cert-manager: "v1.17.2"
+    - app-template: "4.0.1"
+    - nginx-ingress: "4.12.3"
     - registry: "3"
     - dnsmasq: "2.91"
 
@@ -676,7 +970,87 @@ environment:
         size: 5Gi
       config:
         chart: bitnami/postgresql
-        version: 16.6.0
+        version: 16.7.9
+```
+
+#### Multi-Node with Workload Separation
+```yaml
+environment:
+  name: prod-cluster
+  base-dir: ${PWD}/.local
+  expand-base-dir-vars: true
+
+  provider:
+    name: kind
+    runtime: docker
+
+  kubernetes:
+    api-port: 6443
+    image: kindest/node
+    tag: v1.33.1
+
+  nodes:
+    servers: 3
+    workers: 3
+    allow-scheduling-on-control-plane: true
+    internal-components-on-control-plane: true  # Infrastructure on control-plane
+    labels:
+      control-plane:
+        tier: "infrastructure"
+        environment: "production"
+      worker:
+        tier: "application"
+        environment: "production"
+      individual:
+        control-plane-0:
+          zone: "us-west-1a"
+          primary: "true"
+        worker-0:
+          zone: "us-west-1a"
+          workload-type: "database"
+
+  local-ip: 192.168.1.100
+  local-domain: prod.local
+  local-lb-ports:
+    - 80
+    - 443
+
+  registry:
+    name: registry
+    storage:
+      size: 50Gi
+
+  internal-components:
+    - cert-manager: "v1.17.2"
+    - app-template: "4.0.1"
+    - nginx-ingress: "4.12.3"
+    - registry: "3"
+    - dnsmasq: "2.91"
+
+  use-service-presets: true
+  run-services-on-workers-only: true  # Services on workers only
+
+  services:
+    - name: postgres
+      enabled: true
+      namespace: common-services
+      ports:
+        - 5432
+      storage:
+        size: 20Gi
+      config:
+        chart: bitnami/postgresql
+        version: 16.7.9
+    - name: valkey
+      enabled: true
+      namespace: common-services
+      ports:
+        - 6379
+      storage:
+        size: 10Gi
+      config:
+        chart: bitnami/valkey
+        version: 3.0.9
 ```
 
 ### Notes on Usage

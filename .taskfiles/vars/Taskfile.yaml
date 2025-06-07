@@ -23,8 +23,12 @@ vars:
     sh: yq e '.environment.nodes.servers' {{.CONFIG_FILE}}
   WORKERS:
     sh: yq e '.environment.nodes.workers' {{.CONFIG_FILE}}
-  ALLOW_CP_SCHEDULING:
+  ALLOW_CONTROL_PLANE_SCHEDULING:
     sh: yq e '.environment.nodes["allow-scheduling-on-control-plane"] // false' {{.CONFIG_FILE}}
+  INTERNAL_COMPONENTS_ON_CONTROL_PLANE:
+    sh: yq e '.environment.nodes["internal-components-on-control-plane"] // false' {{.CONFIG_FILE}}
+  RUN_SERVICES_ON_WORKERS_ONLY:
+    sh: yq e '.environment["run-services-on-workers-only"] // false' {{.CONFIG_FILE}}
   REGISTRY_HOST: "{{.REGISTRY_NAME}}.{{.LOCAL_DOMAIN}}"
   PROVIDER:
     sh: yq e '.environment.provider.name' {{.CONFIG_FILE}}
