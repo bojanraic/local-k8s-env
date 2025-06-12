@@ -146,7 +146,7 @@ environment:
       config:
         chart: bitnami/valkey # the chart to use
         # renovate: datasource=helm depName=valkey
-        version: 3.0.11
+        version: 3.0.12
 
 # Example a multi-node setup with clean separation of infrastructure and application workloads:
 # environment:
