@@ -113,7 +113,7 @@ environment:
       config:
         chart: bitnami/mongodb # the chart to use
         # renovate: datasource=helm depName=mongodb
-        version: 16.5.20
+        version: 16.5.21
 
     - name: rabbitmq
       enabled: false # whether or not to install this component and expose the port(s)
