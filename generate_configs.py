@@ -68,17 +68,11 @@ def render_template(template_name, context):
             print(f"[ERROR] Message: {e.message}")
         raise
 
-def prepare_context(config):
-    # Load service ports and presets from file
-    service_ports, service_values_presets, service_auth_presets = load_presets()
+def process_system_services(system_services, service_ports, service_values_presets, use_service_presets):
+    """Process system services with presets and port/storage management"""
+    processed_services = []
     
-    # Get services and use-service-presets flag
-    services = config['environment'].get('services', [])
-    use_service_presets = config['environment'].get('use-service-presets', True)
-    
-    # Process each service
-    enabled_services = []
-    for service in services:
+    for service in system_services:
         if not service.get('enabled', False):
             continue
 
@@ -88,7 +82,7 @@ def prepare_context(config):
         # Initialize base_values
         base_values = {}
         
-        # Apply presets if enabled
+        # Apply presets if enabled and available
         if use_service_presets and service_name in service_values_presets:
             base_values = service_values_presets[service_name].copy()
             # Add standard configurations
@@ -97,37 +91,104 @@ def prepare_context(config):
                 'nameOverride': service_name
             })
             
-            # Add persistence configuration
-            if 'primary' in service_values_presets[service_name]:
-                base_values['primary'] = {
-                    'persistence': {
+            # Add persistence configuration based on service storage
+            if 'storage' in service and 'size' in service['storage']:
+                if 'primary' in service_values_presets[service_name]:
+                    base_values['primary'] = base_values.get('primary', {})
+                    base_values['primary']['persistence'] = {
                         'enabled': True,
                         'size': service['storage']['size']
                     }
-                }
-            elif 'persistence' in service_values_presets[service_name]:
-                base_values['persistence'] = {
-                    'enabled': True,
-                    'size': service['storage']['size']
-                }
-            elif 'storage' in service_values_presets[service_name]:
-                base_values['storage'] = {
-                    'enabled': service_values_presets[service_name]['storage'].get('enabled', False),
-                    'requests': service['storage']['size']
-                }
+                elif 'persistence' in service_values_presets[service_name]:
+                    base_values['persistence'] = {
+                        'enabled': True,
+                        'size': service['storage']['size']
+                    }
+                elif 'storage' in service_values_presets[service_name]:
+                    base_values['storage'] = {
+                        'enabled': service_values_presets[service_name]['storage'].get('enabled', False),
+                        'requests': service['storage']['size']
+                    }
         
         # Merge custom values from config if they exist
         custom_values = service.get('config', {}).get('values', {})
         if custom_values:
-            # Store custom values separately to ensure they override base values
             service['custom_values'] = custom_values
-            # Also update base_values with custom values to ensure they take precedence
             base_values.update(custom_values)
         
-        # Store base values
+        # Store processed values
         service['base_values'] = base_values
         service['namespace'] = service_namespace
-        enabled_services.append(service)
+        service['service_type'] = 'system'
+        
+        # Ensure ports are available for system services
+        if service_name in service_ports:
+            service['default_port'] = service_ports[service_name]
+        
+        processed_services.append(service)
+    
+    return processed_services
+
+def process_user_services(user_services):
+    """Process user services without presets - users provide complete configuration"""
+    processed_services = []
+    
+    for service in user_services:
+        if not service.get('enabled', False):
+            continue
+
+        service_name = service['name']
+        service_namespace = service.get('namespace', service_name)
+        
+        # Validate required repo configuration for user services
+        config = service.get('config', {})
+        repo = config.get('repo', {})
+        if not isinstance(repo, dict) or 'name' not in repo or 'url' not in repo:
+            raise ValueError(f"User service '{service_name}' must have repo.name and repo.url configured")
+        
+        # For user services, use values as-is from config
+        service['base_values'] = config.get('values', {})
+        service['namespace'] = service_namespace
+        service['service_type'] = 'user'
+        
+        processed_services.append(service)
+    
+    return processed_services
+
+def collect_helm_repositories(services):
+    """Collect unique helm repositories from all services"""
+    repositories = {}
+    
+    for service in services:
+        repo_config = service.get('config', {}).get('repo', {})
+        if isinstance(repo_config, dict) and 'name' in repo_config and 'url' in repo_config:
+            repo_name = repo_config['name']
+            repo_url = repo_config['url']
+            repositories[repo_name] = repo_url
+    
+    return repositories
+
+def prepare_context(config):
+    # Load service ports and presets from file
+    service_ports, service_values_presets, service_auth_presets = load_presets()
+    
+    # Get services configuration
+    services_config = config['environment'].get('services', {})
+    system_services = services_config.get('system', [])
+    user_services = services_config.get('user', [])
+    use_service_presets = config['environment'].get('use-service-presets', True)
+    
+    # Process services separately
+    processed_system_services = process_system_services(
+        system_services, service_ports, service_values_presets, use_service_presets
+    )
+    processed_user_services = process_user_services(user_services)
+    
+    # Combine all enabled services
+    all_services = processed_system_services + processed_user_services
+    
+    # Collect helm repositories
+    helm_repositories = collect_helm_repositories(all_services)
     
     def get_internal_component(env, key):
         for comp in env.get('internal-components', []):
@@ -159,7 +220,10 @@ def prepare_context(config):
         'runtime': env['provider']['runtime'],
         # Separate ingress and service ports for better control
         'ingress_ports': env['local-lb-ports'],  # 80/443 for ingress
-        'services': [s for s in enabled_services if s.get('enabled', False)],  # Only enabled services
+        'services': all_services,  # All enabled services (system + user)
+        'system_services': processed_system_services,  # Only system services
+        'user_services': processed_user_services,  # Only user services
+        'helm_repositories': helm_repositories,  # All unique helm repositories
         'registry': env['registry'],
         'registry_name': env['registry']['name'],
         'registry_version': get_internal_component(env, 'registry'),
@@ -271,15 +335,25 @@ def generate_resolver_file(config, os_name):
     else:
         print(f"⚠️  Resolver file generation not implemented for {os_name}")
 
-def generate_configs(config_file, os_name):
-    """Generate all configuration files"""
-    config = load_config(config_file)
-    context = prepare_context(config)
+def create_output_directories(context):
+    """Create all necessary output directories"""
+    k8s_dir = context['k8s_dir']
     
-    # Create config directory
+    # Create main directories
+    os.makedirs(f"{k8s_dir}/config", exist_ok=True)
+    os.makedirs(f"{k8s_dir}/certs", exist_ok=True)
+    os.makedirs(f"{k8s_dir}/logs", exist_ok=True)
+    os.makedirs(f"{k8s_dir}/storage", exist_ok=True)
+    
+    # Create containerd config directory for registry certificates
+    containerd_cert_dir = context.get('containerd_cert_dir')
+    if containerd_cert_dir:
+        os.makedirs(containerd_cert_dir, exist_ok=True)
+
+def generate_config_files(context):
+    """Generate all configuration files"""
     k8s_dir = context['k8s_dir']
     config_dir = f"{k8s_dir}/config"
-    os.makedirs(config_dir, exist_ok=True)
     
     # Generate cluster config
     cluster_config = render_template('kind/cluster.yaml.j2', context)
@@ -305,16 +379,34 @@ def generate_configs(config_file, os_name):
     cluster_issuer_config = render_template('cert-manager/cluster-issuer.yaml.j2', context)
     with open(f"{config_dir}/cluster-issuer.yaml", 'w') as f:
         f.write(cluster_issuer_config)
+
+def generate_configs(config_file, os_name):
+    """Generate all configuration files"""
+    print("🔄 Generating configuration files...")
+    config = load_config(config_file)
+    
+    # Generate resolver file based on OS
+    generate_resolver_file(config, os_name)
+    
+    # Generate all other configs
+    context = prepare_context(config)
+    
+    # Create output directories
+    create_output_directories(context)
+    
+    # Generate all configuration files
+    generate_config_files(context)
     
     print("✅ Configuration files generated successfully")
 
 if __name__ == "__main__":
-    if len(sys.argv) != 3:
-        print("Usage: generate_configs.py <config_file> <os>")
+    if len(sys.argv) < 2:
+        print("Usage:")
+        print("  generate_configs.py k8s-env.yaml # Generate all configs")
         sys.exit(1)
     
-    try:
-        generate_configs(sys.argv[1], sys.argv[2])
-    except Exception as e:
-        print(f"❌ Error: {str(e)}")
-        sys.exit(1) 
+    config_file = sys.argv[1]
+    os_name = sys.platform
+    
+    generate_configs(config_file, os_name)
+    sys.exit(0) 

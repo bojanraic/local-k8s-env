@@ -30,7 +30,8 @@ tasks:
         echo "├── Nodes:"
         echo "│   ├── Control Plane: {{.SERVERS}}"
         echo "│   ├── Workers: {{.WORKERS}}"
-        echo "│   └── Control Plane Scheduling: {{.ALLOW_CONTROL_PLANE_SCHEDULING}}"
+        echo "│   ├── Allow Control Plane Scheduling: {{.ALLOW_CONTROL_PLANE_SCHEDULING}}"
+        echo "│   └── Run Services on Workers Only: {{.RUN_SERVICES_ON_WORKERS_ONLY}}"
         echo "└── Service Presets Enabled: {{.USE_SERVICE_PRESETS}}"
 
   services:
@@ -39,7 +40,25 @@ tasks:
     cmds:
       - |
         echo "🔌 Enabled Services:"
-        yq e '.environment.services[] | select(.enabled == true) | "├── " + .name + ": " + (.ports | join(", "))' {{.CONFIG_FILE}}
+        
+        # Show system services
+        SYSTEM_SERVICES=$(yq e '.environment.services.system[] | select(.enabled == true) | .name' {{.CONFIG_FILE}} 2>/dev/null || echo "")
+        if [ -n "$SYSTEM_SERVICES" ]; then
+          echo "├── System Services (with presets):"
+          yq e '.environment.services.system[] | select(.enabled == true) | "│   ├── " + .name + ": " + (.ports | join(", "))' {{.CONFIG_FILE}}
+        else
+          echo "├── System Services: None enabled"
+        fi
+        
+        # Show user services
+        USER_SERVICES=$(yq e '.environment.services.user[] | select(.enabled == true) | .name' {{.CONFIG_FILE}} 2>/dev/null || echo "")
+        if [ -n "$USER_SERVICES" ]; then
+          echo "├── User Services (custom configuration):"
+          yq e '.environment.services.user[] | select(.enabled == true) | "│   ├── " + .name + " (namespace: " + (.namespace // .name) + ")"' {{.CONFIG_FILE}}
+        else
+          echo "├── User Services: None enabled"
+        fi
+        
         echo "└── Registry: {{.REGISTRY_HOST}}"
 
   dns:
@@ -112,10 +131,19 @@ tasks:
             
             # Check for service TLS secrets
             echo "    └── Service TLS Secrets:"
-            ENABLED_SERVICES=($(yq e '.environment.services[] | select(.enabled == true) | .name' {{.CONFIG_FILE}} 2>/dev/null || echo ""))
+            # Get enabled services from both system and user
+            SYSTEM_SERVICES=($(yq e '.environment.services.system[]? | select(.enabled == true) | .name' {{.CONFIG_FILE}} 2>/dev/null || echo ""))
+            USER_SERVICES=($(yq e '.environment.services.user[]? | select(.enabled == true) | .name' {{.CONFIG_FILE}} 2>/dev/null || echo ""))
+            ENABLED_SERVICES=("${SYSTEM_SERVICES[@]}" "${USER_SERVICES[@]}")
+            
             if [ ${#ENABLED_SERVICES[@]} -gt 0 ]; then
               for SERVICE in "${ENABLED_SERVICES[@]}"; do
-                NAMESPACE=$(yq e ".environment.services[] | select(.name == \"$SERVICE\") | .namespace // .name" {{.CONFIG_FILE}})
+                # Try to find namespace in system services first, then user services
+                NAMESPACE=$(yq e ".environment.services.system[]? | select(.name == \"$SERVICE\") | .namespace // .name" {{.CONFIG_FILE}} 2>/dev/null)
+                if [ -z "$NAMESPACE" ]; then
+                  NAMESPACE=$(yq e ".environment.services.user[]? | select(.name == \"$SERVICE\") | .namespace // .name" {{.CONFIG_FILE}} 2>/dev/null)
+                fi
+                
                 if kubectl --kubeconfig {{.KUBECONFIG_PATH}} get secret $SERVICE-tls -n $NAMESPACE >/dev/null 2>&1; then
                   SECRET_AGE=$(kubectl --kubeconfig {{.KUBECONFIG_PATH}} get secret $SERVICE-tls -n $NAMESPACE -o jsonpath='{.metadata.creationTimestamp}')
                   echo "        ├── $SERVICE-tls (namespace: $NAMESPACE, created: $SECRET_AGE)"

@@ -73,86 +73,138 @@ environment:
     - dnsmasq: "2.91"
 
   use-service-presets: true # whether or not to use the preset values for services; leave true unless you have a good reason to override the defaults
-  run-services-on-workers-only: false # whether to force application services to run only on worker nodes (when workers > 0)
+  run-services-on-workers-only: true # whether to force application services to run only on worker nodes (when workers > 0)
 
-  services: # additional services to deploy within the cluster 
-    - name: mysql
-      enabled: false # whether or not to install this component and expose the port(s)
-      namespace: common-services
-      ports:
-        - 3306 # port to expose on the host machine
-      storage: # use PVC for storage
-        size: 10Gi # size of PVC
-      config:
-        chart: bitnami/mysql # the chart to use
-        # renovate: datasource=helm depName=mysql
-        version: 13.0.1
-        values: # additional values to use for the chart
-          auth:
-            createDatabase: false # whether or not to create a database
+  services:
+    # System services - pre-configured services with presets, ports, and storage management
+    system:
+      - name: mysql
+        enabled: false # whether or not to install this component and expose the port(s)
+        namespace: common-services
+        ports:
+          - 3306 # port to expose on the host machine
+        storage: # use PVC for storage
+          size: 10Gi # size of PVC
+        config:
+          repo: # Optional: override default helm repository
+            name: bitnami # helm repository name
+            url: https://charts.bitnami.com/bitnami # helm repository URL
+          chart: bitnami/mysql # the chart to use
+          # renovate: datasource=helm depName=mysql
+          version: 13.0.1
+          values: # additional values to use for the chart
+            auth:
+              createDatabase: false # whether or not to create a database
 
-    - name: postgres
-      enabled: true # whether or not to install this component and expose the port(s)
-      namespace: common-services
-      ports:
-        - 5432
-      storage: # use PVC for storage
-        size: 5Gi
-      config:
-        chart: bitnami/postgresql # the chart to use
-        # renovate: datasource=helm depName=postgresql
-        version: 16.7.11
+      - name: postgres
+        enabled: true # whether or not to install this component and expose the port(s)
+        namespace: common-services
+        ports:
+          - 5432
+        storage: # use PVC for storage
+          size: 5Gi
+        config:
+          repo:
+            name: bitnami # helm repository name
+            url: https://charts.bitnami.com/bitnami # helm repository URL
+          chart: bitnami/postgresql # the chart to use
+          # renovate: datasource=helm depName=postgresql
+          version: 16.7.11
 
-    - name: mongodb
-      enabled: false # whether or not to install this component and expose the port(s)
-      namespace: common-services
-      ports:
-        - 27017 # port to expose on the host machine
-      storage: # use PVC for storage
-        size: 5Gi # size of PVC
-      config:
-        chart: bitnami/mongodb # the chart to use
-        # renovate: datasource=helm depName=mongodb
-        version: 16.5.21
+      - name: mongodb
+        enabled: false # whether or not to install this component and expose the port(s)
+        namespace: common-services
+        ports:
+          - 27017 # port to expose on the host machine
+        storage: # use PVC for storage
+          size: 5Gi # size of PVC
+        config:
+          repo:
+            name: bitnami # helm repository name
+            url: https://charts.bitnami.com/bitnami # helm repository URL
+          chart: bitnami/mongodb # the chart to use
+          # renovate: datasource=helm depName=mongodb
+          version: 16.5.21
 
-    - name: rabbitmq
-      enabled: false # whether or not to install this component and expose the port(s)
-      namespace: common-services
-      ports:
-        - 5672 # port to expose on the host machine
-      storage: # use PVC for storage
-        size: 2Gi # size of PVC
-      config:
-        chart: bitnami/rabbitmq # the chart to use
-        # renovate: datasource=helm depName=rabbitmq
-        version: 16.0.7
-        values: 
-          ingress:
-            enabled: true
-            hostname: rmq.dev.me
-            annotations:
-              cert-manager.io/cluster-issuer: "mkcert-issuer"
-              nginx.ingress.kubernetes.io/ssl-redirect: "true"
-              nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
-            tls: true
+      - name: rabbitmq
+        enabled: false # whether or not to install this component and expose the port(s)
+        namespace: common-services
+        ports:
+          - 5672 # port to expose on the host machine
+        storage: # use PVC for storage
+          size: 2Gi # size of PVC
+        config:
+          repo:
+            name: bitnami # helm repository name
+            url: https://charts.bitnami.com/bitnami # helm repository URL
+          chart: bitnami/rabbitmq # the chart to use
+          # renovate: datasource=helm depName=rabbitmq
+          version: 16.0.7
+          values: 
+            ingress:
+              enabled: true
+              hostname: rmq.dev.me
+              annotations:
+                cert-manager.io/cluster-issuer: "mkcert-issuer"
+                nginx.ingress.kubernetes.io/ssl-redirect: "true"
+                nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
+              tls: true
 
-    - name: valkey
-      enabled: false # whether or not to install this component and expose the port(s)
-      namespace: common-services
-      ports:
-        - 6379 # port to expose on the host machine
-      storage:
-        size: 1Gi
-      config:
-        chart: bitnami/valkey # the chart to use
-        # renovate: datasource=helm depName=valkey
-        version: 3.0.12
+      - name: valkey
+        enabled: false # whether or not to install this component and expose the port(s)
+        namespace: common-services
+        ports:
+          - 6379 # port to expose on the host machine
+        storage:
+          size: 1Gi
+        config:
+          repo:
+            name: bitnami # helm repository name
+            url: https://charts.bitnami.com/bitnami # helm repository URL
+          chart: bitnami/valkey # the chart to use
+          # renovate: datasource=helm depName=valkey
+          version: 3.0.12
+
+    # User services - additional services users can add without presets
+    # Users are expected to provide:
+    #  - complete helm values configuration
+    #  - helm repository configuration (required)
+    #  - ports they want to have exposed on the host machine (optional)
+
+    user: 
+      - name: http-webhook
+        enabled: true
+        namespace: default
+        ports: [] # Optional: open up ports on host machine
+        config:
+          repo: # repo is required 
+            name: securecodebox 
+            url: https://charts.securecodebox.io/
+          chart: securecodebox/http-webhook
+          # renovate: datasource=helm depName=http-webhook
+          version: 4.16.0
+          values: 
+            ingress:
+              enabled: true
+              ingressClassName: "nginx"
+              annotations:
+                cert-manager.io/cluster-issuer: "mkcert-issuer"
+                nginx.ingress.kubernetes.io/ssl-redirect: "true"
+                nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
+              hosts:
+                - host: echo.dev.me
+                  paths:
+                    - /
+              tls:
+                - hosts:
+                    - echo.dev.me
+                  secretName: echo-dev-me-tls
 
 # Example a multi-node setup with clean separation of infrastructure and application workloads:
-# environment:
+# my-sample-env:
 #   name: my-cluster
 #   nodes:
-#     servers: 3
+#     servers: 1
 #     workers: 3
 #     allow-scheduling-on-control-plane: true
 #     internal-components-on-control-plane: true  # cert-manager, nginx-ingress, registry on control-plane
@@ -165,4 +217,4 @@ environment:
 #   
 #   # This creates a clean separation:
 #   # - Control-plane: Kubernetes system + internal components (cert-manager, nginx-ingress, registry)
-#   # - Workers: Application services (databases, message queues, etc.)
+#   # - Workers: Application services (databases, message queues, user services, etc.)

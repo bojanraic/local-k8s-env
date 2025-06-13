@@ -194,12 +194,12 @@ tasks:
       - echo "🔄 Fetching service secrets..."
       - |
         if [ "{{.USE_SERVICE_PRESETS}}" = "true" ]; then
-          # Get list of enabled services first
-          ENABLED_SERVICES=($(yq e '.environment.services[] | select(.enabled == true) | .name' {{.CONFIG_FILE}}))
+          # Get list of enabled system services first
+          ENABLED_SERVICES=($(yq e '.environment.services.system[] | select(.enabled == true) | .name' {{.CONFIG_FILE}}))
           
           # Check if there are any enabled services
           if [ ${#ENABLED_SERVICES[@]} -eq 0 ]; then
-            echo "ℹ️ No enabled services found. No secrets to fetch."
+            echo "ℹ️ No enabled system services found. No secrets to fetch."
             exit 0
           fi
           
@@ -214,7 +214,7 @@ tasks:
           done
           
           if [ "$HAS_PROTECTED_SERVICES" = "false" ]; then
-            echo "ℹ️ No password-protected services found among enabled services. No secrets to fetch."
+            echo "ℹ️ No password-protected services found among enabled system services. No secrets to fetch."
             exit 0
           fi
           
@@ -325,3 +325,21 @@ tasks:
       - echo "🔄 Listing cluster nodes..."
       - kubectl --kubeconfig {{.KUBECONFIG_PATH}} get nodes
       - echo "✅ Node list complete"
+
+  helmfile-apply:
+    desc: Apply helmfile configuration
+    silent: true
+    cmds:
+      - |
+        echo "🔄 Applying helmfile configuration..."
+        helmfile --file {{.K8S_DIR}}/config/helmfile.yaml apply
+        echo "✅ Helmfile configuration applied"
+
+  helmfile-destroy:
+    desc: Destroy helmfile configuration
+    silent: true
+    cmds:
+      - |
+        echo "🔄 Destroying helmfile configuration..."
+        helmfile --file {{.K8S_DIR}}/config/helmfile.yaml destroy
+        echo "✅ Helmfile configuration destroyed"

@@ -615,14 +615,26 @@ tasks:
         
         # Get all enabled services and group them by namespace
         declare -A NAMESPACE_SERVICES
+        
+        # Get system services
         while IFS= read -r service; do
           if [ -n "$service" ]; then
-            ns=$(yq e ".environment.services[] | select(.name == \"$service\") | .namespace // .name" {{.CONFIG_FILE}} 2>/dev/null || echo "")
+            ns=$(yq e ".environment.services.system[]? | select(.name == \"$service\") | .namespace // .name" {{.CONFIG_FILE}} 2>/dev/null || echo "")
             if [ -n "$ns" ]; then
               NAMESPACE_SERVICES["$ns"]+=" $service"
             fi
           fi
-        done < <(yq e '.environment.services[] | select(.enabled == true) | .name' {{.CONFIG_FILE}} 2>/dev/null || echo "")
+        done < <(yq e '.environment.services.system[]? | select(.enabled == true) | .name' {{.CONFIG_FILE}} 2>/dev/null || echo "")
+        
+        # Get user services
+        while IFS= read -r service; do
+          if [ -n "$service" ]; then
+            ns=$(yq e ".environment.services.user[]? | select(.name == \"$service\") | .namespace // .name" {{.CONFIG_FILE}} 2>/dev/null || echo "")
+            if [ -n "$ns" ]; then
+              NAMESPACE_SERVICES["$ns"]+=" $service"
+            fi
+          fi
+        done < <(yq e '.environment.services.user[]? | select(.enabled == true) | .name' {{.CONFIG_FILE}} 2>/dev/null || echo "")
         
         if [ ${#NAMESPACE_SERVICES[@]} -eq 0 ]; then
           echo "├── No enabled services found"

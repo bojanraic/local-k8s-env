@@ -70,7 +70,12 @@ vars:
   OS: '{{OS}}'
   ENABLED_SERVICES:
     sh: |
-      yq e '.environment.services[] | select(.enabled == true) | .name + ":" + (.ports[] | tostring)' {{.CONFIG_FILE}} | paste -sd " " -
+      # Get enabled system services
+      SYSTEM_SERVICES=$(yq e '.environment.services.system[]? | select(.enabled == true) | .name + ":" + (.ports[]? | tostring // "")' {{.CONFIG_FILE}} 2>/dev/null || echo "")
+      # Get enabled user services (no ports for user services)
+      USER_SERVICES=$(yq e '.environment.services.user[]? | select(.enabled == true) | .name + ":user"' {{.CONFIG_FILE}} 2>/dev/null || echo "")
+      # Combine and output
+      echo "$SYSTEM_SERVICES $USER_SERVICES" | xargs
   NGINX_INGRESS_VERSION:
     sh: yq e '.environment.internal-components[] | select(has("nginx-ingress")) | .["nginx-ingress"]' {{.CONFIG_FILE}}
   ROOT_DIR: '{{.ROOT_DIR}}'

@@ -2,7 +2,23 @@ helmDefaults:
   createNamespace: true
   wait: true
   atomic: true
-  timeout: 900
+  timeout: 600
+
+# Dynamic repositories from services configuration
+repositories:
+  # Core repositories for internal components
+  - name: jetstack
+    url: https://charts.jetstack.io
+  - name: ingress-nginx
+    url: https://kubernetes.github.io/ingress-nginx
+  - name: bjw-s-labs
+    url: https://bjw-s-labs.github.io/helm-charts/
+  
+  # Dynamic repositories from services
+  {% for repo_name, repo_url in helm_repositories.items() %}
+  - name: {{ repo_name }}
+    url: {{ repo_url }}
+  {% endfor %}
 
 releases:
   # cert-manager
@@ -107,9 +123,9 @@ releases:
             proxy-body-size: "0"
             use-forwarded-headers: "true"
         tcp:
-          {% for service in services if service.enabled %}
+          {% for service in system_services if service.enabled %}
           {% for port in service.ports %}
-          "{{ port }}": {{ service.namespace | default(service.name) }}/{{ service.name }}:{{ service_ports[service.name] }}
+          "{{ port }}": {{ service.namespace | default(service.name) }}/{{ service.name }}:{{ service.default_port | default(port) }}
           {% endfor %}
           {% endfor %}
 
@@ -181,8 +197,8 @@ releases:
           REGISTRY_HTTP_ADDR: ":5000"
           REGISTRY_STORAGE_FILESYSTEM_ROOTDIRECTORY: /var/lib/registry
 
-  # Service releases
-  {% for service in services if service.enabled %}
+  # System service releases (with presets and port management)
+  {% for service in system_services if service.enabled %}
   - name: {{ service.name }}
     namespace: {{ service.namespace | default(service.name) }}
     chart: {{ service.config.chart }}
@@ -204,13 +220,27 @@ releases:
             operator: "Exists"
             effect: "NoSchedule"
       {% endif %}
-      {% if service.get('storage', {}).get('size') is defined %}
-      - persistence:
-          enabled: true
-          size: {{ service.storage.size }}
-      {% elif service.get('storage', {}).get('enabled', False) %}
-      - persistence:
-          enabled: true
-          size: {{ service.storage.get('size', '10Gi') }}
+  {% endfor %}
+
+  {% if user_services | selectattr('enabled') | list | length > 0 %}
+  # User service releases (without presets - user provides ports and complete values)
+  {% for service in user_services if service.enabled %}
+  - name: {{ service.name }}
+    namespace: {{ service.namespace | default(service.name) }}
+    chart: {{ service.config.chart }}
+    version: {{ service.config.version }}
+    needs:
+      - ingress-nginx/ingress-nginx
+      - cert-manager/cert-manager
+    values:
+      - {{ service.base_values | to_yaml | indent(8) | trim }}
+      {% if run_services_on_workers_only and nodes.workers > 0 %}
+      - nodeSelector:
+          node-role.kubernetes.io/worker: "true"
+        tolerations:
+          - key: "node-role.kubernetes.io/worker"
+            operator: "Exists"
+            effect: "NoSchedule"
       {% endif %}
-  {% endfor %} 
+  {% endfor %}
+  {% endif %} 

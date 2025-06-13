@@ -164,16 +164,17 @@ tasks:
     cmds:
       - |
         echo "🔍 Checking for enabled TCP services..."
-        if [ $(yq e '.environment.services[] | select(.enabled == true) | .name' {{.CONFIG_FILE}} | wc -l) -eq 0 ]; then
+        if [ $(yq e '.environment.services.system[]? | select(.enabled == true) | .name' {{.CONFIG_FILE}} 2>/dev/null | wc -l) -eq 0 ]; then
           echo "ℹ️  No TCP services are enabled. Skipping external validation."
           exit 0
         fi
         
         echo "🔍 Validating enabled TCP services from the local machine:"
         FAILED=0
-        ENABLED_SERVICES=($(yq e '.environment.services[] | select(.enabled == true) | .name' {{.CONFIG_FILE}}))
+        # Get enabled system services (only system services have ports)
+        ENABLED_SERVICES=($(yq e '.environment.services.system[]? | select(.enabled == true) | .name' {{.CONFIG_FILE}} 2>/dev/null || echo ""))
         for service in "${ENABLED_SERVICES[@]}"; do
-          ports=($(yq e ".environment.services[] | select(.name == \"$service\") | .ports[]" {{.CONFIG_FILE}}))
+          ports=($(yq e ".environment.services.system[]? | select(.name == \"$service\") | .ports[]?" {{.CONFIG_FILE}} 2>/dev/null || echo ""))
           for port in "${ports[@]}"; do
             echo "  🔄 Validating $service on port $port..."
             if nc -zv $service.{{.LOCAL_DOMAIN}} $port -w 5 2>&1 | grep -qE 'open|succeeded|Connected'; then
@@ -197,7 +198,7 @@ tasks:
     cmds:
       - |
         echo "🔍 Checking for enabled TCP services..."
-        if [ $(yq e '.environment.services[] | select(.enabled == true) | .name' {{.CONFIG_FILE}} | wc -l) -eq 0 ]; then
+        if [ $(yq e '.environment.services.system[]? | select(.enabled == true) | .name' {{.CONFIG_FILE}} 2>/dev/null | wc -l) -eq 0 ]; then
           echo "ℹ️  No TCP services are enabled. Skipping internal validation."
           exit 0
         fi
@@ -224,9 +225,10 @@ tasks:
         
         # Test each service
         FAILED=0
-        ENABLED_SERVICES=($(yq e '.environment.services[] | select(.enabled == true) | .name' {{.CONFIG_FILE}}))
+        # Get enabled system services (only system services have ports)
+        ENABLED_SERVICES=($(yq e '.environment.services.system[]? | select(.enabled == true) | .name' {{.CONFIG_FILE}} 2>/dev/null || echo ""))
         for service in "${ENABLED_SERVICES[@]}"; do
-          ports=($(yq e ".environment.services[] | select(.name == \"$service\") | .ports[]" {{.CONFIG_FILE}}))
+          ports=($(yq e ".environment.services.system[]? | select(.name == \"$service\") | .ports[]?" {{.CONFIG_FILE}} 2>/dev/null || echo ""))
           for port in "${ports[@]}"; do
             echo "  🔄 Validating $service on port $port..."
             if kubectl exec -n default netcat-internal-test -- nc -zv $service.{{.LOCAL_DOMAIN}} $port -w 5 2>&1 | grep -qE 'open|succeeded|Connected'; then
@@ -283,53 +285,53 @@ tasks:
     vars:
       KUBERNETES_VERSION: 1.29.0
     cmds:
-      - name: Check if kubeconform is installed
-        cmd: |
-          if ! command -v kubeconform &> /dev/null; then
-            echo "❌ kubeconform not found. Please install it with: mise install kubeconform"
-            exit 1
-          fi
-          echo "✅ Using kubeconform: $(kubeconform -v)"
+      - |
+        # Check if kubeconform is installed
+        if ! command -v kubeconform &> /dev/null; then
+          echo "❌ kubeconform not found. Please install it with: mise install kubeconform"
+          exit 1
+        fi
+        echo "✅ Using kubeconform: $(kubeconform -v)"
 
-      - name: Template and validate Test Helm chart
-        cmd: |
-          echo "🔍 Validating Test Helm chart with kubeconform..."
+      - |
+        # Template and validate Test Helm chart
+        echo "🔍 Validating Test Helm chart with kubeconform..."
+        
+        # Create temporary directory for rendered manifests
+        TEMP_DIR=$(mktemp -d)
+        trap 'rm -rf "$TEMP_DIR"' EXIT
+        
+        # Function to validate a chart
+        validate_chart() {
+          local chart=$1
+          local values_file=$2
+          echo "  🔍 Validating chart: $chart"
           
-          # Create temporary directory for rendered manifests
-          TEMP_DIR=$(mktemp -d)
-          trap 'rm -rf "$TEMP_DIR"' EXIT
+          # Template the chart with complete ingress configuration
+          helm template test-release "$chart" \
+            --namespace default \
+            {{if .values_file -}}--values "$values_file" {{end}}\
+            --set image.tag=test \
+            --set image.repository=test \
+            --set ingress.enabled=true \
+            --set ingress.className=nginx \
+            --set-string 'ingress.hosts[0].host=test.local' \
+            --set 'ingress.hosts[0].paths[0].path=/' \
+            > "$TEMP_DIR/manifests.yaml"
           
-          # Function to validate a chart
-          validate_chart() {
-            local chart=$1
-            local values_file=$2
-            echo "  🔍 Validating chart: $chart"
-            
-            # Template the chart with complete ingress configuration
-            helm template test-release "$chart" \
-              --namespace default \
-              {{if .values_file -}}--values "$values_file" {{end}}\
-              --set image.tag=test \
-              --set image.repository=test \
-              --set ingress.enabled=true \
-              --set ingress.className=nginx \
-              --set-string 'ingress.hosts[0].host=test.local' \
-              --set 'ingress.hosts[0].paths[0].path=/' \
-              > "$TEMP_DIR/manifests.yaml"
-            
-            # Validate with kubeconform
-            kubeconform -kubernetes-version {{.KUBERNETES_VERSION}} \
-            -schema-location default \
-            -schema-location 'https://raw.githubusercontent.com/datreeio/CRDs-catalog/main/{{.Group}}/{{.ResourceKind}}_{{.ResourceAPIVersion}}.json' \
-            -summary -output json -exit-on-error "$TEMP_DIR/manifests.yaml"
-          }
-          
-          # Validate local charts
-          for chart in $(find {{.ROOT_DIR}}/tests/registry/ -name Chart.yaml -exec dirname {} \;); do
-            validate_chart "$chart" ""
-          done
-          
-          echo "✅ Test Helm chart validated successfully"
+          # Validate with kubeconform
+          kubeconform -kubernetes-version {{.KUBERNETES_VERSION}} \
+          -schema-location default \
+          -schema-location 'https://raw.githubusercontent.com/datreeio/CRDs-catalog/main/{{.Group}}/{{.ResourceKind}}_{{.ResourceAPIVersion}}.json' \
+          -summary -output json -exit-on-error "$TEMP_DIR/manifests.yaml"
+        }
+        
+        # Validate local charts
+        for chart in $(find {{.ROOT_DIR}}/tests/registry/ -name Chart.yaml -exec dirname {} \;); do
+          validate_chart "$chart" ""
+        done
+        
+        echo "✅ Test Helm chart validated successfully"
 
   test-helm-chart:
     desc: Test the Helm chart templates and lint
