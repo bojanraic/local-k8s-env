@@ -61,7 +61,7 @@ environment:
     - cert-manager: "v1.17.2"
 
     # renovate: datasource=helm depName=app-template
-    - app-template: "4.0.1"
+    - app-template: "4.1.1"
 
     # renovate: datasource=helm depName=ingress-nginx
     - nginx-ingress: "4.12.3"
