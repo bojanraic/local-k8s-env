@@ -86,6 +86,7 @@ nodes:
         {%- endif %}
 {% endfor %}
 
+{% if nodes.workers > 0 %}
 # Worker nodes
 {% for i in range(nodes.workers) %}
 - role: worker
@@ -125,4 +126,4 @@ nodes:
 
 {% endif %}
 {% endfor %}
-
+{% endif %}
