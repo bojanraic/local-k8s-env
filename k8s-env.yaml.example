@@ -163,7 +163,7 @@ environment:
             url: https://charts.bitnami.com/bitnami # helm repository URL
           chart: bitnami/valkey # the chart to use
           # renovate: datasource=helm depName=valkey
-          version: 3.0.15
+          version: 3.0.16
 
     # User services - additional services users can add without presets
     # Users are expected to provide:
