@@ -64,7 +64,7 @@ environment:
     - app-template: "4.1.2"
 
     # renovate: datasource=helm depName=ingress-nginx
-    - nginx-ingress: "4.12.3"
+    - nginx-ingress: "4.13.0"
 
     # renovate: datasource=docker depName=registry
     - registry: "3"
