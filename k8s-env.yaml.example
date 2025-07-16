@@ -91,7 +91,7 @@ environment:
             url: https://charts.bitnami.com/bitnami # helm repository URL
           chart: bitnami/mysql # the chart to use
           # renovate: datasource=helm depName=mysql
-          version: 13.0.3
+          version: 13.0.4
           values: # additional values to use for the chart
             auth:
               createDatabase: false # whether or not to create a database
