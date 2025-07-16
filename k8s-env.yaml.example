@@ -139,7 +139,7 @@ environment:
             url: https://charts.bitnami.com/bitnami # helm repository URL
           chart: bitnami/rabbitmq # the chart to use
           # renovate: datasource=helm depName=rabbitmq
-          version: 16.0.10
+          version: 16.0.11
           values: 
             ingress:
               enabled: true
