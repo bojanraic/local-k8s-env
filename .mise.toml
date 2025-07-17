@@ -22,7 +22,7 @@ jq = "1.8.1"
 kind = "0.29.0"
 
 # renovate: datasource=github-tags depName=kubernetes/kubectl
-kubectl = "1.33.2"
+kubectl = "1.33.3"
 
 # renovate: datasource=github-releases depName=kubernetes-sigs/kustomize
 kustomize = "5.7.0"
