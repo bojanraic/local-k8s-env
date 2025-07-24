@@ -25,7 +25,7 @@ kind = "0.29.0"
 kubectl = "1.33.3"
 
 # renovate: datasource=github-releases depName=kubernetes-sigs/kustomize
-kustomize = "5.7.0"
+kustomize = "5.7.1"
 
 # renovate: datasource=github-releases depName=helm/helm
 helm = "3.18.4"
