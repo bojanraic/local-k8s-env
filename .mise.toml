@@ -10,7 +10,7 @@ uv = "0.5.29"
 # Operations tools
 
 # renovate: datasource=github-releases depName=go-task/task
-task = "3.44.0"
+task = "3.44.1"
 
 # renovate: datasource=github-releases depName=mikefarah/yq
 yq = "v4.46.1"
