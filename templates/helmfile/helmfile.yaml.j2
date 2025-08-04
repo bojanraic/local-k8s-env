@@ -7,8 +7,6 @@ helmDefaults:
 # Dynamic repositories from services configuration
 repositories:
   # Core repositories for internal components
-  - name: jetstack
-    url: https://charts.jetstack.io
   - name: ingress-nginx
     url: https://kubernetes.github.io/ingress-nginx
   - name: bjw-s-labs
@@ -21,64 +19,11 @@ repositories:
   {% endfor %}
 
 releases:
-  # cert-manager
-  - name: cert-manager
-    chart: jetstack/cert-manager
-    namespace: cert-manager
-    version: {{ cert_manager_version }}
-    values:
-      - crds:
-          enabled: true
-        global:
-          leaderElection:
-            namespace: cert-manager
-        prometheus:
-          enabled: false
-        # Webhook configuration with conditional node selector
-        webhook:
-          timeoutSeconds: 30
-          {% if nodes.get('allow-scheduling-on-control-plane', true) and nodes.get('internal-components-on-control-plane', true) %}
-          # Only schedule on control plane if explicitly allowed
-          nodeSelector:
-            node-role.kubernetes.io/control-plane: ""
-          {% endif %}
-        
-        # CA Injector configuration with conditional node selector
-        cainjector:
-          enabled: true
-          {% if nodes.get('allow-scheduling-on-control-plane', true) and nodes.get('internal-components-on-control-plane', true) %}
-          # Only schedule on control plane if explicitly allowed
-          nodeSelector:
-            node-role.kubernetes.io/control-plane: ""
-          {% endif %}
-        
-        # Node selector for main cert-manager pods
-        {% if nodes.get('allow-scheduling-on-control-plane', true) and nodes.get('internal-components-on-control-plane', true) %}
-        # Only schedule on control plane if explicitly allowed
-        nodeSelector:
-          node-role.kubernetes.io/control-plane: ""
-        {% endif %}
-        tolerations:
-          - key: "node.kubernetes.io/not-ready"
-            operator: "Exists"
-            effect: "NoSchedule"
-          - key: "node.kubernetes.io/unreachable"
-            operator: "Exists"
-            effect: "NoSchedule"
-          {% if nodes.get('allow-scheduling-on-control-plane', true) and nodes.get('internal-components-on-control-plane', true) %}
-          # Only add control plane toleration if explicitly allowed
-          - key: "node-role.kubernetes.io/control-plane"
-            operator: "Exists"
-            effect: "NoSchedule"
-          {% endif %}
-
   # Ingress NGINX Controller
   - name: ingress-nginx
     chart: ingress-nginx/ingress-nginx
     namespace: ingress-nginx
     version: {{ nginx_ingress_version }}
-    needs:
-      - cert-manager/cert-manager
     values:
       - controller:
           progressDeadlineSeconds: 300
@@ -112,6 +57,7 @@ releases:
             election-id: ingress-nginx-leader
             controller-class: k8s.io/ingress-nginx
             ingress-class: nginx
+            default-ssl-certificate: kube-system/wildcard-tls
           resources:
             requests:
               cpu: 100m
@@ -168,7 +114,6 @@ releases:
           app:
             className: nginx
             annotations:
-              cert-manager.io/cluster-issuer: "mkcert-issuer"
               nginx.ingress.kubernetes.io/ssl-redirect: "true"
               nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
               kubernetes.io/ingress.allow-http: "false"
@@ -181,9 +126,8 @@ releases:
                       identifier: app
                       port: http
             tls:
-              - secretName: registry-tls
-                hosts:
-                  - {{ registry_name }}.{{ local_domain }}
+              - hosts:
+                - {{ registry_name }}.{{ local_domain }}        
         persistence:
           data:
             enabled: true
@@ -231,7 +175,6 @@ releases:
     version: {{ service.config.version }}
     needs:
       - ingress-nginx/ingress-nginx
-      - cert-manager/cert-manager
     values:
       - {{ service.base_values | to_yaml | indent(8) | trim }}
       {% if run_services_on_workers_only and nodes.workers > 0 %}

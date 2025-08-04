@@ -88,6 +88,7 @@ vars:
   COMBINED_FILE: "{{.K8S_DIR}}/certs/{{.LOCAL_DOMAIN}}-combined.pem"
   CERT_DIR: "{{.K8S_DIR}}/certs"
   CONTAINERD_CERT_DIR: "{{.K8S_DIR}}/config/containerd/certs.d/{{.REGISTRY_NAME}}.{{.LOCAL_DOMAIN}}"
+  DOCKER_CERT_DIR: "~/.docker/certs.d/{{.REGISTRY_NAME}}.{{.LOCAL_DOMAIN}}"
 
   # DNS-related vars
   RESOLVER_DIR: /etc/resolver

@@ -20,8 +20,7 @@
         "\\s*chart:\\s*(?:.*?/)?(?<package>[^/\\s]+)\\s*#.*\\n\\s*#\\s*renovate:\\s*datasource=(?<datasource>[^\\s]+)\\s+depName=(?<depName>[^\\s]+)(?:\\s+repoUrl=(?<repoUrl>[^\\s]+))?(?:\\s+versioning=(?<versioning>[^\\s]+))?\\s*\\n\\s*version:\\s*(?<currentValue>\\S+).*"
       ],
       "datasourceTemplate": "{{datasource}}",
-      "packageNameTemplate": "{{depName}}",
-      "registryUrlTemplate": "{{#if repoUrl}}{{repoUrl}}{{/if}}"
+      "packageNameTemplate": "{{depName}}"
     },
     {
       "customType": "regex",
@@ -43,8 +42,7 @@
         "(?sm)# renovate:\\s*datasource=(?<datasource>\\S+)\\s+depName=(?<depName>\\S+)(?:\\s+repoUrl=(?<repoUrl>[^\\s]+))?(?:\\s+versioning=\\S+)?\\s*\\n\\s*-\\s*(?<key>[^:]+):\\s*\\\"(?<currentValue>[^\\\"]+)\\\""
       ],
       "datasourceTemplate": "{{datasource}}",
-      "packageNameTemplate": "{{depName}}",
-      "registryUrlTemplate": "{{#if repoUrl}}{{repoUrl}}{{/if}}"
+      "packageNameTemplate": "{{depName}}"
     }
   ]
 } 

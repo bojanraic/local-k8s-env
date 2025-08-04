@@ -1,6 +1,11 @@
 environment:
   # General settings
   name: dev-me # name of the environment; drives the naming of kubernetes cluster and nodes, host containers etc
+  
+  # NOTE: Authentication and persistence are handled automatically for system services
+  # - Random passwords are generated for all database services
+  # - Persistence is configured based on storage.size settings
+  # - Passwords can be retrieved using: task kubernetes:fetch-service-secrets
   base-dir: ${PWD}/.local # where kubernetes logs/storage, and various config files are stored
   expand-base-dir-vars: true # set to false if you use absolute path for base-dir; true if you use relative/expanded path
 
@@ -57,8 +62,6 @@ environment:
       size: 15Gi # size of PVC  
 
   internal-components:
-    # renovate: datasource=helm depName=cert-manager
-    - cert-manager: "v1.18.2"
 
     # renovate: datasource=helm depName=app-template
     - app-template: "4.2.0"
@@ -87,14 +90,12 @@ environment:
           size: 10Gi # size of PVC
         config:
           repo: # Optional: override default helm repository
-            name: bitnami # helm repository name
-            url: https://charts.bitnami.com/bitnami # helm repository URL
-          chart: bitnami/mysql # the chart to use
+            name: groundhog2k # helm repository name
+            url: https://groundhog2k.github.io/helm-charts/ # helm repository URL
+          chart: groundhog2k/mysql # the chart to use
           # renovate: datasource=helm depName=mysql
-          version: 14.0.0
-          values: # additional values to use for the chart
-            auth:
-              createDatabase: false # whether or not to create a database
+          version: 3.0.3
+          # MySQL authentication and persistence handled automatically
 
       - name: postgres
         enabled: true # whether or not to install this component and expose the port(s)
@@ -105,11 +106,12 @@ environment:
           size: 5Gi
         config:
           repo:
-            name: bitnami # helm repository name
-            url: https://charts.bitnami.com/bitnami # helm repository URL
-          chart: bitnami/postgresql # the chart to use
-          # renovate: datasource=helm depName=postgresql
-          version: 16.7.21
+            name: groundhog2k # helm repository name
+            url: https://groundhog2k.github.io/helm-charts/ # helm repository URL
+          chart: groundhog2k/postgres # the chart to use
+          # renovate: datasource=helm depName=postgres
+          version: 1.5.5
+          # PostgreSQL authentication and persistence handled automatically
 
       - name: mongodb
         enabled: false # whether or not to install this component and expose the port(s)
@@ -120,11 +122,12 @@ environment:
           size: 5Gi # size of PVC
         config:
           repo:
-            name: bitnami # helm repository name
-            url: https://charts.bitnami.com/bitnami # helm repository URL
-          chart: bitnami/mongodb # the chart to use
+            name: groundhog2k # helm repository name
+            url: https://groundhog2k.github.io/helm-charts/ # helm repository URL
+          chart: groundhog2k/mongodb # the chart to use
           # renovate: datasource=helm depName=mongodb
-          version: 16.5.33
+          version: 0.7.1
+          # MongoDB authentication and persistence handled automatically
 
       - name: rabbitmq
         enabled: false # whether or not to install this component and expose the port(s)
@@ -135,20 +138,23 @@ environment:
           size: 2Gi # size of PVC
         config:
           repo:
-            name: bitnami # helm repository name
-            url: https://charts.bitnami.com/bitnami # helm repository URL
-          chart: bitnami/rabbitmq # the chart to use
+            name: groundhog2k # helm repository name
+            url: https://groundhog2k.github.io/helm-charts/ # helm repository URL
+          chart: groundhog2k/rabbitmq # the chart to use
           # renovate: datasource=helm depName=rabbitmq
-          version: 16.0.11
+          version: 2.1.2
           values: 
+            # RabbitMQ authentication handled automatically
             ingress:
               enabled: true
               hostname: rmq.dev.me
               annotations:
-                cert-manager.io/cluster-issuer: "mkcert-issuer"
                 nginx.ingress.kubernetes.io/ssl-redirect: "true"
                 nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
-              tls: true
+              tls:
+                - secretName: rmq-dev-me-tls
+                  hosts:
+                    - rmq.dev.me
 
       - name: valkey
         enabled: false # whether or not to install this component and expose the port(s)
@@ -159,11 +165,12 @@ environment:
           size: 1Gi
         config:
           repo:
-            name: bitnami # helm repository name
-            url: https://charts.bitnami.com/bitnami # helm repository URL
-          chart: bitnami/valkey # the chart to use
+            name: groundhog2k # helm repository name
+            url: https://groundhog2k.github.io/helm-charts/ # helm repository URL
+          chart: groundhog2k/valkey # the chart to use
           # renovate: datasource=helm depName=valkey
-          version: 3.0.22
+          version: 2.1.0
+          # Valkey persistence handled automatically (no authentication)
 
     # User services - additional services users can add without presets
     # Users are expected to provide:
@@ -188,7 +195,6 @@ environment:
               enabled: true
               ingressClassName: "nginx"
               annotations:
-                cert-manager.io/cluster-issuer: "mkcert-issuer"
                 nginx.ingress.kubernetes.io/ssl-redirect: "true"
                 nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
               hosts:
@@ -199,22 +205,3 @@ environment:
                 - hosts:
                     - echo.dev.me
                   secretName: echo-dev-me-tls
-
-# Example a multi-node setup with clean separation of infrastructure and application workloads:
-# my-sample-env:
-#   name: my-cluster
-#   nodes:
-#     servers: 1
-#     workers: 3
-#     allow-scheduling-on-control-plane: true
-#     internal-components-on-control-plane: true  # cert-manager, nginx-ingress, registry on control-plane
-#     labels:
-#       control-plane:
-#         tier: "infra"
-#       worker:
-#         tier: "app"
-#   run-services-on-workers-only: true  # mysql, postgres, etc. on workers only
-#   
-#   # This creates a clean separation:
-#   # - Control-plane: Kubernetes system + internal components (cert-manager, nginx-ingress, registry)
-#   # - Workers: Application services (databases, message queues, user services, etc.)

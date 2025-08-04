@@ -112,7 +112,7 @@ tasks:
           # Install/upgrade from OCI registry
           helm upgrade --install --wait {{.RELEASE_NAME}} "${HELM_ARGS[@]}"
           
-          echo "✅ Test app deployed from OCI chart at https://{{.REGISTRY_NAME}}-test.{{.LOCAL_DOMAIN}}"
+          echo "✅ Test app deployed from a sample OCI chart hosted at https://{{.REGISTRY_NAME}}.{{.LOCAL_DOMAIN}}"
         fi
 
   undeploy-test-app:

@@ -29,21 +29,16 @@ ingress:
   enabled: true
   className: "nginx"
   annotations:
-    cert-manager.io/cluster-issuer: "mkcert-issuer"
     nginx.ingress.kubernetes.io/ssl-redirect: "true"
     nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
-    cert-manager.io/duration: "72h"
-    cert-manager.io/renew-before: "36h"
   hosts:
     - host: registry-test.local
       paths:
         - path: /
           pathType: Prefix
-  tls:
-    - secretName: registry-test-tls
-      hosts:
-        - registry-test.local
-
+      tls:
+        - hosts:
+            - registry-test.local
 # Additional environment variables for the container
 # Example:
 # env:

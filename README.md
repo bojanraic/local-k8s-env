@@ -24,7 +24,7 @@ A robust and flexible local Kubernetes development environment setup using KinD,
   - MongoDB
   - RabbitMQ
   - Valkey (Redis-compatible)
-- 🛠️ Helm-based service deployment from public repositories (Bitnami, etc.)
+- 🛠️ Helm-based service deployment from public repositories (groundhog2k, etc.)
 - 📋 **OCI Helm Chart Validation**: Local registry testing with OCI artifact storage
 - ⚙️ Configurable via single YAML file
 - 🔄 Automated dependency management with Renovate
@@ -325,7 +325,7 @@ Services are defined in two places:
 1. `k8s-env.yaml`: Service enablement and specific configurations
 2. `templates/service_presets.yaml`: Default service configurations and ports
 
-> **Note**: These services are deployed from public Helm repositories (like Bitnami) using Helmfile, not from the local OCI registry. The local OCI registry is used for validation and custom application development.
+> **Note**: These services are deployed from public Helm repositories (like groundhog2k) using Helmfile, not from the local OCI registry. The local OCI registry is used for validation and custom application development.
 
 ### Service Presets
 
@@ -506,7 +506,7 @@ spec:
 
 The environment includes comprehensive validation workflows for testing OCI registry functionality with Helm charts stored as OCI artifacts.
 
-> **Note**: This is separate from the regular service deployment (MySQL, PostgreSQL, etc.), which uses standard Helm repositories like Bitnami. The OCI validation specifically tests the local registry's ability to store and deploy Helm charts as OCI artifacts.
+> **Note**: This is separate from the regular service deployment (MySQL, PostgreSQL, etc.), which uses standard Helm repositories like groundhog2k. The OCI validation specifically tests the local registry's ability to store and deploy Helm charts as OCI artifacts.
 
 ### Validation Workflow
 
@@ -554,8 +554,8 @@ The environment supports two distinct Helm deployment patterns:
 Standard Helm deployment from public repositories:
 ```bash
 # These are deployed automatically via Helmfile from public repos
-# Example: PostgreSQL from Bitnami repository
-helm install postgres bitnami/postgresql --version 16.7.9
+# Example: PostgreSQL from groundhog2k repository
+helm install postgres groundhog2k/postgres --version 1.5.5
 ```
 
 #### 2. **OCI Chart Deployment** (Validation & Custom Apps)
@@ -576,7 +576,7 @@ helm install my-app oci://cr.dev.me/helm-charts/my-app --version 0.1.0
 ```
 
 **Key Differences:**
-- **Services**: Use public Helm repositories (Bitnami, etc.) via Helmfile
+- **Services**: Use public Helm repositories (groundhog2k, etc.) via Helmfile
 - **OCI Validation**: Uses local registry to store/deploy charts as OCI artifacts
 - **Use Cases**: Services for infrastructure, OCI for custom application development
 
@@ -857,7 +857,7 @@ environment:
       storage:
         size: 10Gi
       config:
-        chart: bitnami/mysql
+        chart: groundhog2k/mysql
         version: 12.3.2
         values:
           auth:
@@ -900,7 +900,7 @@ environment:
 ###### `config.chart`
 - **Type**: string
 - **Description**: Helm chart to use for the service.
-- **Example**: `bitnami/mysql`
+- **Example**: `groundhog2k/mysql`
 
 ###### `config.version`
 - **Type**: string
@@ -969,7 +969,7 @@ environment:
       storage:
         size: 5Gi
       config:
-        chart: bitnami/postgresql
+        chart: groundhog2k/postgres
         version: 16.7.9
 ```
 
@@ -1039,7 +1039,7 @@ environment:
       storage:
         size: 20Gi
       config:
-        chart: bitnami/postgresql
+        chart: groundhog2k/postgres
         version: 16.7.9
     - name: valkey
       enabled: true
@@ -1049,7 +1049,7 @@ environment:
       storage:
         size: 10Gi
       config:
-        chart: bitnami/valkey
+        chart: groundhog2k/valkey
         version: 3.0.9
 ```
 

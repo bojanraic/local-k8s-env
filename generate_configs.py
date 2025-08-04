@@ -4,19 +4,73 @@ import sys
 import yaml
 import jinja2
 import subprocess
+import secrets
+import string
 from pathlib import Path
 
 CACERT_FILE = "/etc/ssl/certs/mkcert-ca.pem"
 
+def generate_random_password(length=24):
+    """Generate a secure random password"""
+    alphabet = string.ascii_letters + string.digits + "!@#$%^&*"
+    return ''.join(secrets.choice(alphabet) for _ in range(length))
+
+def generate_chart_auth_config(service_name, chart_name):
+    """Generate authentication configuration for specific charts"""
+    auth_configs = {
+        'mysql': {
+            'settings': {
+                'rootPassword': {
+                    'value': generate_random_password()
+                }
+            }
+        },
+        'postgres': {
+            'settings': {
+                'superuserPassword': {
+                    'value': generate_random_password()
+                }
+            }
+        },
+        'mongodb': {
+            'settings': {
+                'rootUsername': 'root',
+                'rootPassword': generate_random_password()
+            }
+        },
+        'rabbitmq': {
+            'authentication': {
+                'user': {
+                    'value': 'admin'
+                },
+                'password': {
+                    'value': generate_random_password()
+                },
+                'erlangCookie': {
+                    'value': generate_random_password(32)
+                }
+            }
+        },
+        'valkey': {
+            'useDeploymentWhenNonHA': False  # Use StatefulSet instead of Deployment
+        }
+    }
+    
+    # Extract chart name from full path (e.g., 'groundhog2k/mysql' -> 'mysql')
+    chart_basename = chart_name.split('/')[-1] if '/' in chart_name else chart_name
+    
+    return auth_configs.get(chart_basename, {})
+
 def load_presets():
     """Load service ports and presets from service_presets.yaml"""
-    preset_file = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'templates', 'service_presets.yaml')
+    # Get the directory containing this script
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    preset_file = os.path.join(script_dir, 'templates', 'service_presets.yaml')
     with open(preset_file) as f:
         presets = yaml.safe_load(f)
     return (
         presets.get('service_ports', {}),
-        presets.get('service_values_presets', {}),
-        presets.get('service_auth_presets', {})
+        presets.get('service_values_presets', {})
     )
 
 def load_config(config_file):
@@ -24,7 +78,9 @@ def load_config(config_file):
         return yaml.safe_load(f)
 
 def setup_jinja_env():
-    template_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'templates')
+    # Get the directory containing this script
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    template_dir = os.path.join(script_dir, 'templates')
     env = jinja2.Environment(
         loader=jinja2.FileSystemLoader(str(template_dir)),
         trim_blocks=True,
@@ -93,7 +149,12 @@ def process_system_services(system_services, service_ports, service_values_prese
             
             # Add persistence configuration based on service storage
             if 'storage' in service and 'size' in service['storage']:
-                if 'primary' in service_values_presets[service_name]:
+                # For groundhog2k charts, use 'storage.requestedSize' instead of Bitnami's structure
+                if 'storage' in service_values_presets[service_name]:
+                    base_values['storage'] = base_values.get('storage', {})
+                    base_values['storage']['requestedSize'] = service['storage']['size']
+                # Legacy support for Bitnami-style charts (if any remain)
+                elif 'primary' in service_values_presets[service_name]:
                     base_values['primary'] = base_values.get('primary', {})
                     base_values['primary']['persistence'] = {
                         'enabled': True,
@@ -104,11 +165,21 @@ def process_system_services(system_services, service_ports, service_values_prese
                         'enabled': True,
                         'size': service['storage']['size']
                     }
-                elif 'storage' in service_values_presets[service_name]:
-                    base_values['storage'] = {
-                        'enabled': service_values_presets[service_name]['storage'].get('enabled', False),
-                        'requests': service['storage']['size']
-                    }
+            
+            # Generate and apply authentication configuration automatically
+            chart_name = service.get('config', {}).get('chart', '')
+            if chart_name:
+                auth_config = generate_chart_auth_config(service_name, chart_name)
+                if auth_config:
+                    # Deep merge auth config into base_values
+                    for key, value in auth_config.items():
+                        if key in base_values and isinstance(base_values[key], dict) and isinstance(value, dict):
+                            base_values[key].update(value)
+                        elif key in base_values and isinstance(base_values[key], list) and isinstance(value, list):
+                            base_values[key].extend(value)
+                        else:
+                            base_values[key] = value
+                    print(f"🔐 Generated authentication configuration for {service_name}")
         
         # Merge custom values from config if they exist
         custom_values = service.get('config', {}).get('values', {})
@@ -170,7 +241,7 @@ def collect_helm_repositories(services):
 
 def prepare_context(config):
     # Load service ports and presets from file
-    service_ports, service_values_presets, service_auth_presets = load_presets()
+    service_ports, service_values_presets = load_presets()
     
     # Get services configuration
     services_config = config['environment'].get('services', {})

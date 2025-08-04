@@ -76,16 +76,16 @@
       "ignoreTests": true
     },
     {
-      "description": "Bitnami charts",
+      "description": "groundhog2k charts",
       "matchDatasources": [
         "helm"
       ],
       "registryUrls": [
-        "https://charts.bitnami.com/bitnami"
+        "https://groundhog2k.github.io/helm-charts/"
       ],
       "matchPackageNames": [
-        "mysql",
-        "postgresql",
+        "mysql",  
+        "postgres",
         "mongodb",
         "rabbitmq",
         "valkey"
@@ -141,6 +141,19 @@
       ],
       "registryUrls": [
         "https://kubernetes.github.io/ingress-nginx"
+      ],
+      "versioning": "helm"
+    },
+    {
+      "description": "securecodebox charts",
+      "matchDatasources": [
+        "helm"
+      ],
+      "registryUrls": [
+        "https://charts.securecodebox.io/"
+      ],
+      "matchPackageNames": [
+        "http-webhook"
       ],
       "versioning": "helm"
     },

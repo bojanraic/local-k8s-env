@@ -50,12 +50,12 @@ tasks:
           helm repo update ingress-nginx >/dev/null
         fi
         
-        if ! helm repo list | grep -q "^bitnami"; then
-          echo "  📦 Adding bitnami repository..."
-          helm repo add bitnami https://charts.bitnami.com/bitnami >/dev/null
+        if ! helm repo list | grep -q "^groundhog2k"; then
+          echo "  📦 Adding groundhog2k repository..."
+          helm repo add groundhog2k https://groundhog2k.github.io/helm-charts/ >/dev/null
         else
-          echo "  📦 Updating bitnami repository..."
-          helm repo update bitnami >/dev/null
+          echo "  📦 Updating groundhog2k repository..."
+          helm repo update groundhog2k >/dev/null
         fi
         
         if ! helm repo list | grep -q "^bjw-s-labs"; then
@@ -65,83 +65,40 @@ tasks:
           echo "  📦 Updating bjw-s-labs repository..."
           helm repo update bjw-s-labs >/dev/null
         fi
-        
-        if ! helm repo list | grep -q "^jetstack"; then
-          echo "  📦 Adding jetstack repository..."
-          helm repo add jetstack https://charts.jetstack.io >/dev/null
-        else
-          echo "  📦 Updating jetstack repository..."
-          helm repo update jetstack >/dev/null
-        fi
       - echo "✅ Helm repositories setup complete"
     status:
       - |
         # Check if all required repositories are present
         helm repo list | grep -q "ingress-nginx" && \
-        helm repo list | grep -q "bitnami" && \
-        helm repo list | grep -q "bjw-s-labs" && \
-        helm repo list | grep -q "jetstack"
+        helm repo list | grep -q "groundhog2k" && \
+        helm repo list | grep -q "bjw-s-labs"
 
-  setup-cert-manager:
-    desc: Deploy cert-manager and configure ClusterIssuer with mkcert CA
+  setup-wildcard-cert:
+    desc: Create wildcard TLS certificate secret for nginx-ingress
     silent: true
-    deps: [setup-helm-repos]
     cmds:
-      - echo "🔄 Setting up cert-manager..."
+      - echo "🔄 Creating wildcard TLS secret..."
       - |
-        echo "  📦 Installing/upgrading cert-manager..."
-        helmfile --file {{.K8S_DIR}}/config/helmfile.yaml \
-          --selector name=cert-manager \
-          apply --kubeconfig {{.KUBECONFIG_PATH}} --skip-diff-on-install --suppress-diff
-      - |
-        # Wait for cert-manager pods to be ready before setting up the issuer
-        echo "⏳ Waiting for cert-manager webhook..."
-        kubectl --kubeconfig {{.KUBECONFIG_PATH}} wait --namespace cert-manager \
-          --for=condition=ready pod \
-          --selector=app.kubernetes.io/component=webhook \
-          --timeout=90s || {
-            echo "❌ Timeout waiting for cert-manager webhook"
-            exit 1
-          }
-        sleep 5  # Give cert-manager a moment to establish its CRDs
-
-        # Create or update CA secret
-        echo "📦 Creating/updating mkcert CA secret..."
-        kubectl --kubeconfig {{.KUBECONFIG_PATH}} create secret generic mkcert-ca-secret \
-          --namespace cert-manager \
-          --from-file=tls.crt={{.K8S_DIR}}/certs/rootCA.pem \
-          --from-file=tls.key={{.K8S_DIR}}/certs/rootCA-key.pem \
+        # Create kube-system namespace if it doesn't exist
+        kubectl --kubeconfig {{.KUBECONFIG_PATH}} create namespace kube-system --dry-run=client -o yaml | kubectl --kubeconfig {{.KUBECONFIG_PATH}} apply -f -
+        
+        # Create wildcard TLS secret
+        kubectl --kubeconfig {{.KUBECONFIG_PATH}} create secret tls wildcard-tls \
+          --namespace kube-system \
+          --cert={{.CERT_FILE}} \
+          --key={{.KEY_FILE}} \
           --dry-run=client -o yaml | \
           kubectl --kubeconfig {{.KUBECONFIG_PATH}} apply -f -
-
-        # Apply the ClusterIssuer
-        echo "🔧 Creating/updating ClusterIssuer..."
-        kubectl --kubeconfig {{.KUBECONFIG_PATH}} apply -f {{.K8S_DIR}}/config/cluster-issuer.yaml
-
-        # Verify ClusterIssuer is ready
-        echo "⏳ Waiting for ClusterIssuer to be ready..."
-        for i in $(seq 1 30); do
-          if kubectl --kubeconfig {{.KUBECONFIG_PATH}} get clusterissuer mkcert-issuer -o jsonpath='{.status.conditions[?(@.type=="Ready")].status}' | grep -q "True"; then
-            echo "✅ ClusterIssuer is ready"
-            break
-          fi
-          if [ $i -eq 30 ]; then
-            echo "❌ Timeout waiting for ClusterIssuer to be ready"
-            exit 1
-          fi
-          sleep 2
-        done
-      - echo "✅ cert-manager setup complete"
+      - echo "✅ Wildcard TLS secret created"
     status:
-      - |
-        kubectl --kubeconfig {{.KUBECONFIG_PATH}} get secret mkcert-ca-secret -n cert-manager >/dev/null 2>&1 && \
-        kubectl --kubeconfig {{.KUBECONFIG_PATH}} get clusterissuer mkcert-issuer >/dev/null 2>&1 && \
-        kubectl --kubeconfig {{.KUBECONFIG_PATH}} get clusterissuer mkcert-issuer -o jsonpath='{.status.conditions[?(@.type=="Ready")].status}' | grep -q "True"
+      - kubectl --kubeconfig {{.KUBECONFIG_PATH}} get secret wildcard-tls -n kube-system >/dev/null 2>&1
+
+
 
   deploy-services:
     desc: Deploy remaining services using helmfile
     silent: true
-    deps: [setup-helm-repos, setup-cert-manager]
+    deps: [setup-helm-repos, setup-wildcard-cert]
     cmds:
       - echo "🔄 Deploying services..."
       - |
@@ -193,86 +150,66 @@ tasks:
     cmds:
       - echo "🔄 Fetching service secrets..."
       - |
-        if [ "{{.USE_SERVICE_PRESETS}}" = "true" ]; then
-          # Get list of enabled system services first
-          ENABLED_SERVICES=($(yq e '.environment.services.system[] | select(.enabled == true) | .name' {{.CONFIG_FILE}}))
+        # Get all deployed helm releases
+        RELEASES=$(helm --kubeconfig {{.KUBECONFIG_PATH}} list --all-namespaces -o json)
+        
+        if [ "$(echo "$RELEASES" | jq length)" -eq 0 ]; then
+          echo "ℹ️ No Helm releases found. Deploy services first."
+          exit 0
+        fi
+        
+        OUTPUT_FILE="{{.K8S_DIR}}/service-secrets.txt"
+        > $OUTPUT_FILE  # Clear the file before writing
+        
+        echo "  🔍 Extracting passwords from Helm release values..."
+        
+        # Service configurations with value paths in Helm charts
+        declare -A SERVICE_CONFIGS
+        SERVICE_CONFIGS["mysql"]="root:settings.rootPassword.value"
+        SERVICE_CONFIGS["postgres"]="postgres:settings.superuserPassword.value"
+        SERVICE_CONFIGS["mongodb"]="root:settings.rootPassword"
+        SERVICE_CONFIGS["rabbitmq"]="admin:authentication.password.value"
+        
+        for SERVICE in "${!SERVICE_CONFIGS[@]}"; do
+          # Check if service is deployed
+          RELEASE_INFO=$(echo "$RELEASES" | jq -r ".[] | select(.name == \"$SERVICE\") | .namespace")
           
-          # Check if there are any enabled services
-          if [ ${#ENABLED_SERVICES[@]} -eq 0 ]; then
-            echo "ℹ️ No enabled system services found. No secrets to fetch."
-            exit 0
-          fi
-          
-          # Check if any enabled services are password-protected
-          HAS_PROTECTED_SERVICES=false
-          for SERVICE in "${ENABLED_SERVICES[@]}"; do
-            IS_PROTECTED=$(yq e ".service_auth_presets.$SERVICE.password-protected" {{.ROOT_DIR}}/templates/service_presets.yaml)
-            if [ "$IS_PROTECTED" = "true" ]; then
-              HAS_PROTECTED_SERVICES=true
-              break
-            fi
-          done
-          
-          if [ "$HAS_PROTECTED_SERVICES" = "false" ]; then
-            echo "ℹ️ No password-protected services found among enabled system services. No secrets to fetch."
-            exit 0
-          fi
-          
-          OUTPUT_FILE="{{.K8S_DIR}}/service-secrets.txt"
-          > $OUTPUT_FILE  # Clear the file before writing
-
-          # Get all helm releases and their namespaces
-          echo "  🔍 Getting Helm release information..."
-          
-          # Get namespaces for each service using kubectl
-          declare -A SERVICE_NAMESPACES
-          for SERVICE in "${ENABLED_SERVICES[@]}"; do
-            # Try to find the service's namespace using kubectl
-            NAMESPACE=$(kubectl --kubeconfig {{.KUBECONFIG_PATH}} get pods --all-namespaces -l "app.kubernetes.io/name=$SERVICE" -o jsonpath='{.items[0].metadata.namespace}' 2>/dev/null)
-            if [ -n "$NAMESPACE" ]; then
-              SERVICE_NAMESPACES[$SERVICE]=$NAMESPACE
-              echo "    Found service: $SERVICE in namespace: $NAMESPACE"
-            fi
-          done
-
-          for SERVICE in "${ENABLED_SERVICES[@]}"; do
-            # Check if service is password-protected in presets
-            IS_PROTECTED=$(yq e ".service_auth_presets.$SERVICE.password-protected" {{.ROOT_DIR}}/templates/service_presets.yaml)
-            if [ "$IS_PROTECTED" = "true" ]; then
-              # Get secret name, field, and username from presets
-              SECRET_NAME=$(yq e ".service_auth_presets.$SERVICE.secret-name" {{.ROOT_DIR}}/templates/service_presets.yaml)
-              PASSWORD_FIELD=$(yq e ".service_auth_presets.$SERVICE.password-field" {{.ROOT_DIR}}/templates/service_presets.yaml)
-              USERNAME=$(yq e ".service_auth_presets.$SERVICE.username" {{.ROOT_DIR}}/templates/service_presets.yaml)
+          if [ -n "$RELEASE_INFO" ] && [ "$RELEASE_INFO" != "null" ]; then
+            NAMESPACE="$RELEASE_INFO"
+            echo "  📦 Found deployed service: $SERVICE in namespace: $NAMESPACE"
+            
+            # Extract username and value path from config
+            USERNAME=$(echo "${SERVICE_CONFIGS[$SERVICE]}" | cut -d: -f1)
+            VALUE_PATH=$(echo "${SERVICE_CONFIGS[$SERVICE]}" | cut -d: -f2)
+            
+            # Get the Helm values and extract password
+            VALUES=$(helm --kubeconfig {{.KUBECONFIG_PATH}} get values "$SERVICE" -n "$NAMESPACE" -o json 2>/dev/null)
+            
+            if [ -n "$VALUES" ] && [ "$VALUES" != "null" ]; then
+              # Use jq to extract the password from the nested path
+              PASSWORD=$(echo "$VALUES" | jq -r ".$VALUE_PATH // empty" 2>/dev/null)
               
-              # Use the actual namespace from Helm release
-              NAMESPACE="${SERVICE_NAMESPACES[$SERVICE]}"
-              if [ -z "$NAMESPACE" ]; then
-                echo "⚠️ Could not find namespace for service $SERVICE, skipping..."
-                continue
-              fi
-              echo "  📦 Fetching secret for $SERVICE from namespace $NAMESPACE..."
-              
-              PASSWORD=$(kubectl get secret $SECRET_NAME -n $NAMESPACE -o jsonpath="{.data.$PASSWORD_FIELD}" | base64 --decode)
-              if [ -n "$PASSWORD" ]; then
+              if [ -n "$PASSWORD" ] && [ "$PASSWORD" != "null" ]; then
                 echo "Service $SERVICE (namespace: $NAMESPACE), Username: $USERNAME, Password: $PASSWORD" >> $OUTPUT_FILE
+                echo "    ✅ Retrieved password for $SERVICE"
               else
-                echo "⚠️ Could not fetch password for service $SERVICE"
+                echo "    ⚠️ Password not found at path '$VALUE_PATH' for $SERVICE"
               fi
+            else
+              echo "    ⚠️ Could not retrieve Helm values for $SERVICE"
             fi
-          done
-
-          if [ -s "$OUTPUT_FILE" ]; then
-            echo "🔑 Passwords for enabled password-protected services have been written to $OUTPUT_FILE"
-            echo "🔑 Service secrets:"
-            cat $OUTPUT_FILE
-            echo "✅ Service secrets fetched successfully"
-          else
-            echo "⚠️ Failed to fetch any service secrets. Check if secrets exist in the cluster."
           fi
+        done
+        
+        if [ -s "$OUTPUT_FILE" ]; then
+          echo ""
+          echo "🔑 Service secrets:"
+          cat $OUTPUT_FILE
+          echo ""
+          echo "✅ Service secrets fetched successfully"
+          echo "📝 Secrets saved to: $OUTPUT_FILE"
         else
-          echo "ℹ️ Service presets are disabled (use-service-presets: false)"
-          echo "👉 You are responsible for managing service secrets."
-          echo "   Refer to each service's helm chart documentation for configuration"
+          echo "⚠️ No service secrets found. Services may not be deployed yet or passwords may not be in Helm values."
         fi
 
   create-cluster:

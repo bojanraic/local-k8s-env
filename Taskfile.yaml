@@ -129,6 +129,10 @@ tasks:
         echo "  📁 Setting up containerd registry certificates..."
         mkdir -p {{.CONTAINERD_CERT_DIR}}
         cp {{.CERT_DIR}}/rootCA.pem {{.CONTAINERD_CERT_DIR}}/ca.crt
+      - |
+        echo "  🐳 Setting up Docker registry certificates..."
+        mkdir -p {{.DOCKER_CERT_DIR}}
+        cp {{.CERT_DIR}}/rootCA.pem {{.DOCKER_CERT_DIR}}/ca.crt
       - echo "✅ Certificates setup complete"
     status:
       - test -f "{{.ROOT_CA_PATH}}/rootCA.pem"
@@ -138,6 +142,7 @@ tasks:
       - test -f {{.KEY_FILE}}
       - test -f {{.COMBINED_FILE}}
       - test -f {{.CONTAINERD_CERT_DIR}}/ca.crt
+      - test -f {{.DOCKER_CERT_DIR}}/ca.crt
 
   setup-dnsmasq:
     desc: Setup dnsmasq configuration
@@ -246,7 +251,7 @@ tasks:
       - task: kubernetes:set-control-plane-scheduling
       - task: kubernetes:label-worker-nodes
       - task: kubernetes:list-nodes
-      - task: kubernetes:setup-cert-manager
+      - task: kubernetes:setup-wildcard-cert
       - task: kubernetes:deploy-services
       - task: kubernetes:fetch-service-secrets
 
