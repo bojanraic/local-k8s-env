@@ -62,12 +62,14 @@ environment:
       size: 15Gi # size of PVC  
 
   internal-components:
-
     # renovate: datasource=helm depName=app-template
     - app-template: "4.2.0"
 
     # renovate: datasource=helm depName=ingress-nginx
     - nginx-ingress: "4.13.0"
+
+    # renovate: datasource=helm depName=metrics-server
+    - metrics-server: "3.13.0"
 
     # renovate: datasource=docker depName=registry
     - registry: "3"
@@ -77,6 +79,7 @@ environment:
 
   use-service-presets: true # whether or not to use the preset values for services; leave true unless you have a good reason to override the defaults
   run-services-on-workers-only: true # whether to force application services to run only on worker nodes (when workers > 0)
+  deploy-metrics-server: true # whether to deploy metrics-server for resource monitoring and HPA
 
   services:
     # System services - pre-configured services with presets, ports, and storage management

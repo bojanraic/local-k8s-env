@@ -8,6 +8,7 @@ A robust and flexible local Kubernetes development environment setup using KinD,
 - 📦 Built-in local container registry with TLS support
 - 🔒 Automatic TLS certificate generation for local domains
 - 🌐 Local wildcard DNS resolution for `<local-domain>` (configurable) domain
+- 📈 Built-in metrics-server for resource monitoring and HPA support
 - 📊 **Comprehensive Cluster Status**: Detailed view of cluster resources with `task status`
   - Node status with role-based filtering
   - Service status grouped by namespace

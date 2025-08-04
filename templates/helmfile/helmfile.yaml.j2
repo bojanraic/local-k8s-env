@@ -11,6 +11,10 @@ repositories:
     url: https://kubernetes.github.io/ingress-nginx
   - name: bjw-s-labs
     url: https://bjw-s-labs.github.io/helm-charts/
+  {% if deploy_metrics_server %}
+  - name: metrics-server
+    url: https://kubernetes-sigs.github.io/metrics-server/
+  {% endif %}
   
   # Dynamic repositories from services
   {% for repo_name, repo_url in helm_repositories.items() %}
@@ -74,6 +78,29 @@ releases:
           "{{ port }}": {{ service.namespace | default(service.name) }}/{{ service.name }}:{{ service.default_port | default(port) }}
           {% endfor %}
           {% endfor %}
+
+  {% if deploy_metrics_server %}
+  # Metrics Server
+  - name: metrics-server
+    chart: metrics-server/metrics-server
+    namespace: kube-system
+    version: {{ metrics_server_version }}
+    values:
+      - args:
+          - --kubelet-insecure-tls
+          - --kubelet-preferred-address-types=InternalIP
+        {% if nodes.get('allow-scheduling-on-control-plane', true) and nodes.get('internal-components-on-control-plane', true) %}
+        nodeSelector:
+          node-role.kubernetes.io/control-plane: ""
+        tolerations:
+          - key: "node-role.kubernetes.io/control-plane"
+            operator: "Exists"
+            effect: "NoSchedule"
+          - key: "node-role.kubernetes.io/master"
+            operator: "Exists"
+            effect: "NoSchedule"
+        {% endif %}
+  {% endif %}
 
   # Registry
   - name: registry

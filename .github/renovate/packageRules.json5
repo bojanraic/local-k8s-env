@@ -145,6 +145,19 @@
       "versioning": "helm"
     },
     {
+      "description": "Internal component: metrics-server",
+      "matchDatasources": [
+        "helm"
+      ],
+      "matchPackageNames": [
+        "metrics-server"
+      ],
+      "registryUrls": [
+        "https://kubernetes-sigs.github.io/metrics-server/"
+      ],
+      "versioning": "helm"
+    },
+    {
       "description": "securecodebox charts",
       "matchDatasources": [
         "helm"
