@@ -257,6 +257,8 @@ The environment is configured through `k8s-env.yaml`. Key configuration options:
 - `local-ip`: Your local machine's IP address
 - `local-domain`: Domain for local services
 - `nodes`: Control plane and worker node count
+- `deploy-metrics-server`: Enable/disable metrics-server deployment (default: true)
+- `expand-env-vars`: Enable/disable variable expansion (default: true)
 - `services`: Enable/disable and configure development services
 
 To view the full list of configuration options, review the comments in the `k8s-env.yaml` file.
@@ -629,42 +631,42 @@ environment:
   # General settings
   name: string                    # Name of the environment
   base-dir: string                # Base directory for storage
-  expand-base-dir-vars: boolean   # Whether to expand variables in base-dir
+  expand-env-vars: boolean        # Whether to expand OS and k8s-env variables
   
   # Provider configuration
   provider:
-    name: string                 # Provider name (currently only "kind" supported)
-    runtime: string              # Container runtime (docker or podman)
+    name: string                  # Provider name (currently only "kind" supported)
+    runtime: string               # Container runtime (docker or podman)
   
   # Kubernetes configuration
   kubernetes:
-    api-port: integer            # API server port
-    image: string                # Node image
-    tag: string                  # Node image tag
+    api-port: integer             # API server port
+    image: string                 # Node image
+    tag: string                   # Node image tag
   
   # Node configuration
   nodes:
-    servers: integer             # Number of control-plane nodes
-    workers: integer             # Number of worker nodes
+    servers: integer              # Number of control-plane nodes
+    workers: integer              # Number of worker nodes
     allow-scheduling-on-control-plane: boolean # Allow scheduling on control-plane
   
   # Network configuration
-  local-ip: string              # Local IP for DNS resolution
-  local-domain: string          # Local domain for DNS resolution
-  local-lb-ports: array         # Load balancer ports
+  local-ip: string                # Local IP for DNS resolution
+  local-domain: string            # Local domain for DNS resolution
+  local-lb-ports: array           # Load balancer ports
   
   # Registry configuration
   registry:
-    name: string                # Registry name
+    name: string                  # Registry name
     storage:
-      size: string              # Storage size for registry
+      size: string                # Storage size for registry
   
   # Internal components
-  internal-components: array    # List of internal components with versions
+  internal-components: array      # List of internal components with versions
   
   # Service configuration
-  use-service-presets: boolean  # Whether to use service presets
-  services: array               # List of services to deploy
+  use-service-presets: boolean    # Whether to use service presets
+  services: array                 # List of services to deploy
 ```
 
 ### Detailed Field Descriptions
@@ -680,11 +682,11 @@ environment:
 - **Type**: string
 - **Description**: Directory where Kubernetes logs, storage, and various config files are stored.
 - **Example**: `${PWD}/.local`
-- **Notes**: Can use environment variables like `${PWD}` which will be expanded if `expand-base-dir-vars` is true.
+- **Notes**: Can use environment variables like `${PWD}` which will be expanded if `expand-env-vars` is true.
 
-##### `expand-base-dir-vars`
+##### `expand-env-vars`
 - **Type**: boolean
-- **Description**: Whether to expand variables in the `base-dir` path.
+- **Description**: Whether to expand OS environment variables (${PWD}, ${HOME}, etc.) in base-dir and helm values, and k8s-env variables (${LOCAL_DOMAIN}, etc.) in helm values.
 - **Default**: true
 - **Example**: true
 - **Notes**: Set to false if using absolute paths.
@@ -925,7 +927,7 @@ environment:
 environment:
   name: dev-me
   base-dir: ${PWD}/.local
-  expand-base-dir-vars: true
+  expand-env-vars: true
 
   provider:
     name: kind
@@ -979,7 +981,7 @@ environment:
 environment:
   name: prod-cluster
   base-dir: ${PWD}/.local
-  expand-base-dir-vars: true
+  expand-env-vars: true
 
   provider:
     name: kind
@@ -1071,7 +1073,9 @@ environment:
 
 5. The script requires sudo privileges to configure DNS resolvers on the host system.
 
-6. Environment variables in paths (like `${PWD}`) are expanded if `expand-base-dir-vars` is set to true.
+6. Variables are expanded if `expand-env-vars` is set to true:
+   - OS environment variables (like `${PWD}`, `${HOME}`) in base-dir and helm values
+   - k8s-env variables (like `${LOCAL_DOMAIN}`, `${ENV_NAME}`) in helm values
 
 
 ## License

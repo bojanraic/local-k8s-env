@@ -124,7 +124,45 @@ def render_template(template_name, context):
             print(f"[ERROR] Message: {e.message}")
         raise
 
-def process_system_services(system_services, service_ports, service_values_presets, use_service_presets):
+def expand_os_variables(obj, expand_vars=True):
+    """
+    Recursively expand OS environment variables in objects.
+    Supports ${PWD}, ${HOME}, ${USER}, etc.
+    """
+    if not expand_vars:
+        return obj
+        
+    if isinstance(obj, dict):
+        return {k: expand_os_variables(v, expand_vars) for k, v in obj.items()}
+    elif isinstance(obj, list):
+        return [expand_os_variables(item, expand_vars) for item in obj]
+    elif isinstance(obj, str):
+        import os
+        return os.path.expandvars(obj)
+    else:
+        return obj
+
+def expand_k8s_env_variables(obj, k8s_env_vars, expand_vars=True):
+    """
+    Recursively expand k8s-env specific variables in values objects.
+    Supports ${LOCAL_DOMAIN}, ${ENV_NAME}, ${REGISTRY_HOST}, etc.
+    """
+    if not expand_vars:
+        return obj
+        
+    if isinstance(obj, dict):
+        return {k: expand_k8s_env_variables(v, k8s_env_vars, expand_vars) for k, v in obj.items()}
+    elif isinstance(obj, list):
+        return [expand_k8s_env_variables(item, k8s_env_vars, expand_vars) for item in obj]
+    elif isinstance(obj, str):
+        result = obj
+        for var_name, var_value in k8s_env_vars.items():
+            result = result.replace(f'${{{var_name}}}', str(var_value))
+        return result
+    else:
+        return obj
+
+def process_system_services(system_services, service_ports, service_values_presets, use_service_presets, k8s_env_vars, expand_vars=True):
     """Process system services with presets and port/storage management"""
     processed_services = []
     
@@ -184,8 +222,11 @@ def process_system_services(system_services, service_ports, service_values_prese
         # Merge custom values from config if they exist
         custom_values = service.get('config', {}).get('values', {})
         if custom_values:
-            service['custom_values'] = custom_values
-            base_values.update(custom_values)
+            # First expand OS variables, then k8s-env variables
+            expanded_custom_values = expand_os_variables(custom_values, expand_vars)
+            expanded_custom_values = expand_k8s_env_variables(expanded_custom_values, k8s_env_vars, expand_vars)
+            service['custom_values'] = expanded_custom_values
+            base_values.update(expanded_custom_values)
         
         # Store processed values
         service['base_values'] = base_values
@@ -200,7 +241,7 @@ def process_system_services(system_services, service_ports, service_values_prese
     
     return processed_services
 
-def process_user_services(user_services):
+def process_user_services(user_services, k8s_env_vars, expand_vars=True):
     """Process user services without presets - users provide complete configuration"""
     processed_services = []
     
@@ -217,8 +258,12 @@ def process_user_services(user_services):
         if not isinstance(repo, dict) or 'name' not in repo or 'url' not in repo:
             raise ValueError(f"User service '{service_name}' must have repo.name and repo.url configured")
         
-        # For user services, use values as-is from config
-        service['base_values'] = config.get('values', {})
+        # For user services, use values from config with variable expansion
+        base_values = config.get('values', {})
+        # First expand OS variables, then k8s-env variables
+        expanded_values = expand_os_variables(base_values, expand_vars)
+        expanded_values = expand_k8s_env_variables(expanded_values, k8s_env_vars, expand_vars)
+        service['base_values'] = expanded_values
         service['namespace'] = service_namespace
         service['service_type'] = 'user'
         
@@ -250,10 +295,23 @@ def prepare_context(config):
     use_service_presets = config['environment'].get('use-service-presets', True)
     
     # Process services separately
+    # Create k8s-env variables dictionary for expansion
+    env = config['environment']
+    expand_vars = env.get('expand-env-vars', True)
+    
+    # Build k8s-env variables dictionary (most commonly used in helm values)
+    k8s_env_vars = {
+        'ENV_NAME': env['name'],
+        'LOCAL_DOMAIN': env['local-domain'],
+        'LOCAL_IP': env['local-ip'],
+        'REGISTRY_NAME': env['registry']['name'],
+        'REGISTRY_HOST': f"{env['registry']['name']}.{env['local-domain']}",
+    }
+    
     processed_system_services = process_system_services(
-        system_services, service_ports, service_values_presets, use_service_presets
+        system_services, service_ports, service_values_presets, use_service_presets, k8s_env_vars, expand_vars
     )
-    processed_user_services = process_user_services(user_services)
+    processed_user_services = process_user_services(user_services, k8s_env_vars, expand_vars)
     
     # Combine all enabled services
     all_services = processed_system_services + processed_user_services
@@ -267,7 +325,6 @@ def prepare_context(config):
                 return comp[key]
         return None
 
-    env = config['environment']
     provider_name = env['provider']['name']
     
     # Set provider-specific paths and settings
@@ -275,11 +332,11 @@ def prepare_context(config):
     log_path = '/var/log'
     internal_domain = 'kind.internal'
     internal_host = 'localhost.kind.internal'
-    # Expand base directory variables for KinD
+    # Expand base directory variables for KinD  
     base_dir = env['base-dir']
-    if env['expand-base-dir-vars']:
-        pwd = os.getcwd()
-        base_dir = base_dir.replace('${PWD}', pwd)
+    if env.get('expand-env-vars', True):
+        import os
+        base_dir = os.path.expandvars(base_dir)
     
     context = {
         'env_name': env['name'],

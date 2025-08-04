@@ -7,7 +7,15 @@ environment:
   # - Persistence is configured based on storage.size settings
   # - Passwords can be retrieved using: task kubernetes:fetch-service-secrets
   base-dir: ${PWD}/.local # where kubernetes logs/storage, and various config files are stored
-  expand-base-dir-vars: true # set to false if you use absolute path for base-dir; true if you use relative/expanded path
+  expand-env-vars: true # set to false to disable variable expansion; true to enable expansion of:
+                        # - OS variables (${PWD}, ${HOME}, ${USER}) in base-dir and helm values
+                        # - k8s-env variables (${LOCAL_DOMAIN}, ${ENV_NAME}, etc.) in helm values
+                        # Available k8s-env variables for use in helm values:
+                        # - ${ENV_NAME}      - environment name (e.g., "dev-me")
+                        # - ${LOCAL_DOMAIN}  - local domain (e.g., "dev.me") 
+                        # - ${LOCAL_IP}      - local IP address (e.g., "192.168.0.10")
+                        # - ${REGISTRY_NAME} - registry name (e.g., "cr")
+                        # - ${REGISTRY_HOST} - registry host (e.g., "cr.dev.me")
 
   # At the moment, KinD on macOS has been tested, with a docker-compatible runtime
   # Podman has been tried out but it is not a first-class citizen with KinD so it is not supported as of yet
@@ -150,14 +158,13 @@ environment:
             # RabbitMQ authentication handled automatically
             ingress:
               enabled: true
-              hostname: rmq.dev.me
+              hostname: rmq.${LOCAL_DOMAIN}
               annotations:
                 nginx.ingress.kubernetes.io/ssl-redirect: "true"
                 nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
               tls:
-                - secretName: rmq-dev-me-tls
-                  hosts:
-                    - rmq.dev.me
+                - hosts:
+                    - rmq.${LOCAL_DOMAIN}
 
       - name: valkey
         enabled: false # whether or not to install this component and expose the port(s)
@@ -201,10 +208,9 @@ environment:
                 nginx.ingress.kubernetes.io/ssl-redirect: "true"
                 nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
               hosts:
-                - host: echo.dev.me
+                - host: echo.${LOCAL_DOMAIN}
                   paths:
                     - /
               tls:
                 - hosts:
-                    - echo.dev.me
-                  secretName: echo-dev-me-tls
+                    - echo.${LOCAL_DOMAIN}
