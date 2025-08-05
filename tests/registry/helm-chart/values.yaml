@@ -32,13 +32,13 @@ ingress:
     nginx.ingress.kubernetes.io/ssl-redirect: "true"
     nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
   hosts:
-    - host: registry-test.local
+    - host: registry-test.app.local 
       paths:
         - path: /
           pathType: Prefix
       tls:
         - hosts:
-            - registry-test.local
+            - registry-test.app.local
 # Additional environment variables for the container
 # Example:
 # env:

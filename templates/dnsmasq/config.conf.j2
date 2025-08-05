@@ -1,12 +1,16 @@
 # DNS configuration for {{ env_name }} environment
 
-# Core infrastructure services
+# Strict/exact match for registry and system services
+
+# Core infrastructure services (registry)
 address=/{{ registry_name }}.{{ local_domain }}/{{ local_ip }}
 
-# Enabled system and user services
-{% for service in services if service.enabled %}
+# System services (databases, message queues, etc.)
+{% for service in system_services %}
 address=/{{ service.name }}.{{ local_domain }}/{{ local_ip }}
 {% endfor %}
 
-# Wildcard for unknown services (users can still deploy custom ingresses)
-address=/{{ local_domain }}/{{ local_ip }} 
+# Wildcard for dynamic user applications/services
+address=/*.{{ user_subdomain }}.{{ local_domain }}/{{ local_ip }}
+
+# Block any other subdomains by not providing a wildcard for {{ local_domain }}

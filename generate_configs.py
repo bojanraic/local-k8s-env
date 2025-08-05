@@ -338,6 +338,7 @@ def prepare_context(config):
         'LOCAL_IP': env['local-ip'],
         'REGISTRY_NAME': env['registry']['name'],
         'REGISTRY_HOST': f"{env['registry']['name']}.{env['local-domain']}",
+        'USER_SUBDOMAIN': env.get('user-subdomain', 'app'),
     }
     
     processed_system_services = process_system_services(
@@ -374,6 +375,7 @@ def prepare_context(config):
         'env_name': env['name'],
         'local_ip': env['local-ip'],
         'local_domain': env['local-domain'],
+        'user_subdomain': env.get('user-subdomain', 'app'),
         'kubernetes': env['kubernetes'],
         'api_port': env['kubernetes']['api-port'],
         'nodes': env['nodes'],

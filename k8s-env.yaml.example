@@ -11,11 +11,12 @@ environment:
                         # - OS variables (${PWD}, ${HOME}, ${USER}) in base-dir and helm values
                         # - k8s-env variables (${LOCAL_DOMAIN}, ${ENV_NAME}, etc.) in helm values
                         # Available k8s-env variables for use in helm values:
-                        # - ${ENV_NAME}      - environment name (e.g., "dev-me")
-                        # - ${LOCAL_DOMAIN}  - local domain (e.g., "dev.me") 
-                        # - ${LOCAL_IP}      - local IP address (e.g., "192.168.0.10")
-                        # - ${REGISTRY_NAME} - registry name (e.g., "cr")
-                        # - ${REGISTRY_HOST} - registry host (e.g., "cr.dev.me")
+                        # - ${ENV_NAME}       - environment name (e.g., "dev-me")
+                        # - ${USER_SUBDOMAIN} - subdomain for user apps (e.g., "app")
+                        # - ${LOCAL_DOMAIN}   - local domain (e.g., "dev.me") 
+                        # - ${LOCAL_IP}       - local IP address (e.g., "192.168.0.10")
+                        # - ${REGISTRY_NAME}  - registry name (e.g., "cr")
+                        # - ${REGISTRY_HOST}  - registry host (e.g., "cr.dev.me")
 
   # At the moment, KinD on macOS has been tested, with a docker-compatible runtime
   # Podman has been tried out but it is not a first-class citizen with KinD so it is not supported as of yet
@@ -59,7 +60,8 @@ environment:
       #     zone: "us-west-1b"
 
   local-ip: 192.168.0.10 # local ip, mapping to the host IP to use for DNS resolution and wildcard certificates
-  local-domain: dev.me # a domain name to use for custom dns resolution and wildcard certificates 
+  local-domain: dev.me # a domain name to use for custom dns resolution and wildcard certificates
+  user-subdomain: app # subdomain for user applications (e.g., myapp.app.dev.me)
   local-lb-ports: # list of ports to expose on the load balancer side, mapping to the host machine
     - 80 # http port for nginx ingress controller
     - 443 # https port for nginx ingress controller
@@ -189,6 +191,12 @@ environment:
     #  - complete helm values configuration
     #  - helm repository configuration (required)
     #  - ports they want to have exposed on the host machine (optional)
+    #
+    # DNS and Ingress Structure:
+    # - System services use: service.local.domain (e.g., mysql.dev.me)
+    # - User services use: service.app.local.domain (e.g., myapp.app.dev.me)
+    # - Registry uses: registry.local.domain (e.g., cr.dev.me)
+    # This separation provides better security by isolating system services from user applications
 
     user: 
       - name: http-webhook
@@ -209,9 +217,9 @@ environment:
                 nginx.ingress.kubernetes.io/ssl-redirect: "true"
                 nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
               hosts:
-                - host: echo.${LOCAL_DOMAIN}
+                - host: echo.${USER_SUBDOMAIN}.${LOCAL_DOMAIN}
                   paths:
                     - /
               tls:
                 - hosts:
-                    - echo.${LOCAL_DOMAIN}
+                    - echo.${USER_SUBDOMAIN}.${LOCAL_DOMAIN}

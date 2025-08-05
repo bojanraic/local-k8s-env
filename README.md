@@ -325,6 +325,33 @@ The `.local` directory (configurable via `base-dir` in `k8s-env.yaml`) is create
 
 The environment manages development services (databases, message queues, etc.) through Helm deployments from public repositories.
 
+### Service Types and DNS Structure
+
+The environment uses a structured DNS approach to separate system services from user applications:
+
+1. **System Services** (`service.local.domain`):
+   - Core infrastructure services (databases, message queues, etc.)
+   - Direct DNS resolution (e.g., `mysql.dev.me`, `postgres.dev.me`)
+   - Protected by explicit DNS entries
+   - No wildcard resolution for security
+   - Example: `postgres.dev.me:5432`
+
+2. **User Applications** (`service.app.local.domain`):
+   - Custom applications and services
+   - All under `.app` subdomain
+   - Wildcard DNS resolution
+   - Example: `myapp.app.dev.me`
+
+3. **Core Infrastructure** (`service.local.domain`):
+   - Registry service
+   - Example: `cr.dev.me`
+
+This separation provides several benefits:
+- **Security**: System service names can't be spoofed through DNS
+- **Clarity**: Clear distinction between infrastructure and applications
+- **Isolation**: User applications confined to `.app` subdomain
+- **Protection**: Prevents unauthorized access to system service ports through DNS
+
 Services are defined in two places:
 
 1. `k8s-env.yaml`: Service enablement and specific configurations
@@ -364,10 +391,19 @@ Once the environment is running, services are accessible through:
 
 2. **Domain Names**:
    ```bash
-   # Example for PostgreSQL
+   # Example for system service (PostgreSQL)
    psql -h postgres.me.local -U postgres
+
+   # Example for user application
+   curl https://some.app.me.local
    ```
-> NOTE: DNS resolution is handled by the local DNSMasq container, which is automatically started when you create or start the environment. It will resolve any hostname with the `<local-domain>` to the local IP address. This means that you can use any hostname to access the services via corresponding ports. The advice is to use the service name as the hostname, for example `postgres.me.local` or `rabbitmq.me.local` instead of `localhost`. One additional advantage is that TLS certificates are automatically generated and trusted for the `<local-domain>` and can be used for the services.
+> NOTE: DNS resolution is handled by the local DNSMasq container, which is automatically started when you create or start the environment. It uses a structured approach:
+> - System services (databases, queues) use direct hostnames: `db.me.local`
+> - User applications use the configured subdomain: `some.${USER_SUBDOMAIN}.me.local` (default: app)
+> - Only the user subdomain allows wildcard resolution for security
+> - User subdomain can be configured via `user-subdomain` setting in k8s-env.yaml
+> 
+> This separation ensures system service names can't be spoofed through DNS. TLS certificates are automatically generated and trusted for both the main domain and .app subdomain.
 
 1. **Service Credentials**:
    - Passwords for password-protected services are automatically generated and stored in `<local-dir>/<env-name>/service-secrets.txt`

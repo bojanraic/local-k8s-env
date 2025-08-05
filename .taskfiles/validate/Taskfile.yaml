@@ -86,10 +86,10 @@ tasks:
             "--namespace" "default"
             "--set" "image.tag={{.EFFECTIVE_IMAGE_TAG}}"
             "--set" "image.repository={{.REGISTRY_HOST}}/{{.REGISTRY_NAME}}-test"
-            "--set" "ingress.hosts[0].host={{.REGISTRY_NAME}}-test.{{.LOCAL_DOMAIN}}"
+            "--set" "ingress.hosts[0].host={{.REGISTRY_NAME}}-test.{{.USER_SUBDOMAIN}}.{{.LOCAL_DOMAIN}}"
             "--set" "ingress.hosts[0].paths[0].path=/"
             "--set" "ingress.hosts[0].paths[0].pathType=Prefix"
-            "--set" "ingress.tls[0].hosts[0]={{.REGISTRY_NAME}}-test.{{.LOCAL_DOMAIN}}"
+            "--set" "ingress.tls[0].hosts[0]={{.REGISTRY_NAME}}-test.{{.USER_SUBDOMAIN}}.{{.LOCAL_DOMAIN}}"
             "--set" "ingress.tls[0].secretName={{.REGISTRY_NAME}}-test-tls"
             "--set" "env[0].name=CHART_NAME"
             "--set" "env[0].value={{.CHART_NAME}}"
@@ -154,8 +154,8 @@ tasks:
     cmds:
       - echo "🔄 Validating test application..."
       - sleep 5
-      - echo -e "\n🌐 Registry Test (https://{{.TEST_NAME}}.{{.LOCAL_DOMAIN}}/):\n"
-      - curl -s https://{{.TEST_NAME}}.{{.LOCAL_DOMAIN}}/
+      - echo -e "\n🌐 Registry Test (https://{{.TEST_NAME}}.{{.USER_SUBDOMAIN}}.{{.LOCAL_DOMAIN}}/):\n"
+      - curl -s https://{{.TEST_NAME}}.{{.USER_SUBDOMAIN}}.{{.LOCAL_DOMAIN}}/
       - echo "✅ Test application validation complete"
 
   tcp-services-external:
@@ -272,7 +272,7 @@ tasks:
         
         # Check if demo app deployment exists
         if helm status {{.REGISTRY_NAME}}-test -n default >/dev/null 2>&1; then
-          echo "   https://{{.REGISTRY_NAME}}-test.{{.LOCAL_DOMAIN}}/"
+          echo "   https://{{.REGISTRY_NAME}}-test.{{.USER_SUBDOMAIN}}.{{.LOCAL_DOMAIN}}/"
           echo ""
         else
           echo "ℹ️  Demo App deployment not found ({{.REGISTRY_NAME}}-test)"
@@ -315,7 +315,7 @@ tasks:
             --set image.repository=test \
             --set ingress.enabled=true \
             --set ingress.className=nginx \
-            --set-string 'ingress.hosts[0].host=test.local' \
+            --set-string 'ingress.hosts[0].host=test.{{.USER_SUBDOMAIN}}.{{.LOCAL_DOMAIN}}' \
             --set 'ingress.hosts[0].paths[0].path=/' \
             > "$TEMP_DIR/manifests.yaml"
           
@@ -349,8 +349,8 @@ tasks:
           "test-app" "{{.REG_TEST_DIR}}/helm-chart"
           "--set" "image.tag={{.CR_TEST_IMAGE_TAG}}"
           "--set" "image.repository={{.REGISTRY_HOST}}/{{.REGISTRY_NAME}}-test"
-          "--set" "ingress.hosts[0].host={{.REGISTRY_NAME}}-test.{{.LOCAL_DOMAIN}}"
-          "--set" "ingress.tls[0].hosts[0]={{.REGISTRY_NAME}}-test.{{.LOCAL_DOMAIN}}"
+          "--set" "ingress.hosts[0].host={{.REGISTRY_NAME}}-test.{{.USER_SUBDOMAIN}}.{{.LOCAL_DOMAIN}}"
+          "--set" "ingress.tls[0].hosts[0]={{.REGISTRY_NAME}}-test.{{.USER_SUBDOMAIN}}.{{.LOCAL_DOMAIN}}"
           "--dry-run"
         )
         
