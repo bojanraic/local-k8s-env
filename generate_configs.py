@@ -271,10 +271,20 @@ def process_user_services(user_services, k8s_env_vars, expand_vars=True):
     
     return processed_services
 
-def collect_helm_repositories(services):
-    """Collect unique helm repositories from all services"""
+def collect_helm_repositories(config, services):
+    """Collect helm repositories from centralized config and resolve service references"""
+    # Get centralized repositories
+    centralized_repos = config['environment'].get('helm-repositories', [])
     repositories = {}
     
+    # Add centralized repositories
+    for repo in centralized_repos:
+        if isinstance(repo, dict) and 'name' in repo and 'url' in repo:
+            repo_name = repo['name']
+            repo_url = repo['url']
+            repositories[repo_name] = repo_url
+    
+    # Also collect any inline repo configs (for backward compatibility)
     for service in services:
         repo_config = service.get('config', {}).get('repo', {})
         if isinstance(repo_config, dict) and 'name' in repo_config and 'url' in repo_config:
@@ -283,6 +293,21 @@ def collect_helm_repositories(services):
             repositories[repo_name] = repo_url
     
     return repositories
+
+def resolve_repo_references(services, helm_repositories):
+    """Resolve repo.ref references to actual repository configurations"""
+    centralized_repo_map = {repo['name']: repo for repo in helm_repositories if isinstance(repo, dict) and 'name' in repo}
+    
+    for service in services:
+        repo_config = service.get('config', {}).get('repo', {})
+        if isinstance(repo_config, dict) and 'ref' in repo_config:
+            ref_name = repo_config['ref']
+            if ref_name in centralized_repo_map:
+                # Replace ref with actual repo config
+                service['config']['repo'] = centralized_repo_map[ref_name].copy()
+            else:
+                raise ValueError(f"Repository reference '{ref_name}' not found in helm-repositories for service '{service.get('name', 'unknown')}'")
+
 
 def prepare_context(config):
     # Load service ports and presets from file
@@ -293,6 +318,13 @@ def prepare_context(config):
     system_services = services_config.get('system', [])
     user_services = services_config.get('user', [])
     use_service_presets = config['environment'].get('use-service-presets', True)
+    
+    # Get centralized helm repositories
+    helm_repositories_config = config['environment'].get('helm-repositories', [])
+    
+    # Resolve repository references in services
+    resolve_repo_references(system_services, helm_repositories_config)
+    resolve_repo_references(user_services, helm_repositories_config)
     
     # Process services separately
     # Create k8s-env variables dictionary for expansion
@@ -317,7 +349,7 @@ def prepare_context(config):
     all_services = processed_system_services + processed_user_services
     
     # Collect helm repositories
-    helm_repositories = collect_helm_repositories(all_services)
+    helm_repositories = collect_helm_repositories(config, all_services)
     
     def get_internal_component(env, key):
         for comp in env.get('internal-components', []):
@@ -364,7 +396,7 @@ def prepare_context(config):
         'service_values_presets': service_values_presets,
         'use_service_presets': use_service_presets,
         'run_services_on_workers_only': env.get('run-services-on-workers-only', False),
-        'deploy_metrics_server': env.get('deploy-metrics-server', True),
+        'deploy_metrics_server': env.get('enable-metrics-server', True),
         'cacert_file': CACERT_FILE,
         'k8s_dir': f"{base_dir}/{env['name']}",
         'mounts': [
@@ -397,6 +429,7 @@ def prepare_context(config):
     else:
         full_image = kubernetes_image
     context['kubernetes_full_image'] = full_image
+    
     
     return context
 
@@ -509,6 +542,7 @@ def generate_config_files(context):
     cluster_issuer_config = render_template('cert-manager/cluster-issuer.yaml.j2', context)
     with open(f"{config_dir}/cluster-issuer.yaml", 'w') as f:
         f.write(cluster_issuer_config)
+    
 
 def generate_configs(config_file, os_name):
     """Generate all configuration files"""

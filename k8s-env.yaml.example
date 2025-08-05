@@ -87,7 +87,14 @@ environment:
 
   use-service-presets: true # whether or not to use the preset values for services; leave true unless you have a good reason to override the defaults
   run-services-on-workers-only: true # whether to force application services to run only on worker nodes (when workers > 0)
-  deploy-metrics-server: true # whether to deploy metrics-server for resource monitoring and HPA
+  enable-metrics-server: false # whether to deploy metrics-server for resource monitoring and HPA
+
+  # Centralized helm repository definitions
+  helm-repositories:
+    - name: groundhog2k
+      url: https://groundhog2k.github.io/helm-charts/
+    - name: securecodebox
+      url: https://charts.securecodebox.io/
 
   services:
     # System services - pre-configured services with presets, ports, and storage management
@@ -100,9 +107,8 @@ environment:
         storage: # use PVC for storage
           size: 10Gi # size of PVC
         config:
-          repo: # Optional: override default helm repository
-            name: groundhog2k # helm repository name
-            url: https://groundhog2k.github.io/helm-charts/ # helm repository URL
+          repo:
+            ref: groundhog2k # reference to helm-repositories entry
           chart: groundhog2k/mysql # the chart to use
           # renovate: datasource=helm depName=mysql
           version: 3.0.3
@@ -117,8 +123,7 @@ environment:
           size: 5Gi
         config:
           repo:
-            name: groundhog2k # helm repository name
-            url: https://groundhog2k.github.io/helm-charts/ # helm repository URL
+            ref: groundhog2k # reference to helm-repositories entry
           chart: groundhog2k/postgres # the chart to use
           # renovate: datasource=helm depName=postgres
           version: 1.5.5
@@ -133,8 +138,7 @@ environment:
           size: 5Gi # size of PVC
         config:
           repo:
-            name: groundhog2k # helm repository name
-            url: https://groundhog2k.github.io/helm-charts/ # helm repository URL
+            ref: groundhog2k # reference to helm-repositories entry
           chart: groundhog2k/mongodb # the chart to use
           # renovate: datasource=helm depName=mongodb
           version: 0.7.1
@@ -149,8 +153,7 @@ environment:
           size: 2Gi # size of PVC
         config:
           repo:
-            name: groundhog2k # helm repository name
-            url: https://groundhog2k.github.io/helm-charts/ # helm repository URL
+            ref: groundhog2k # reference to helm-repositories entry
           chart: groundhog2k/rabbitmq # the chart to use
           # renovate: datasource=helm depName=rabbitmq
           version: 2.1.2
@@ -175,8 +178,7 @@ environment:
           size: 1Gi
         config:
           repo:
-            name: groundhog2k # helm repository name
-            url: https://groundhog2k.github.io/helm-charts/ # helm repository URL
+            ref: groundhog2k # reference to helm-repositories entry
           chart: groundhog2k/valkey # the chart to use
           # renovate: datasource=helm depName=valkey
           version: 2.1.0
@@ -195,8 +197,7 @@ environment:
         ports: [] # Optional: open up ports on host machine
         config:
           repo: # repo is required 
-            name: securecodebox 
-            url: https://charts.securecodebox.io/
+            ref: securecodebox # reference to helm-repositories entry
           chart: securecodebox/http-webhook
           # renovate: datasource=helm depName=http-webhook
           version: 4.16.0

@@ -26,6 +26,7 @@ A robust and flexible local Kubernetes development environment setup using KinD,
   - RabbitMQ
   - Valkey (Redis-compatible)
 - 🛠️ Helm-based service deployment from public repositories (groundhog2k, etc.)
+- 🗂️ **Centralized Helm Repository Management**: Define repositories once, reference everywhere
 - 📋 **OCI Helm Chart Validation**: Local registry testing with OCI artifact storage
 - ⚙️ Configurable via single YAML file
 - 🔄 Automated dependency management with Renovate
@@ -257,8 +258,9 @@ The environment is configured through `k8s-env.yaml`. Key configuration options:
 - `local-ip`: Your local machine's IP address
 - `local-domain`: Domain for local services
 - `nodes`: Control plane and worker node count
-- `deploy-metrics-server`: Enable/disable metrics-server deployment (default: true)
+- `enable-metrics-server`: Enable/disable metrics-server deployment (default: true)
 - `expand-env-vars`: Enable/disable variable expansion (default: true)
+- `helm-repositories`: Centralized Helm repository definitions
 - `services`: Enable/disable and configure development services
 
 To view the full list of configuration options, review the comments in the `k8s-env.yaml` file.
@@ -633,6 +635,9 @@ environment:
   base-dir: string                # Base directory for storage
   expand-env-vars: boolean        # Whether to expand OS and k8s-env variables
   
+  # Centralized repository definitions
+  helm-repositories: array        # List of Helm repositories
+  
   # Provider configuration
   provider:
     name: string                  # Provider name (currently only "kind" supported)
@@ -690,6 +695,25 @@ environment:
 - **Default**: true
 - **Example**: true
 - **Notes**: Set to false if using absolute paths.
+
+
+#### Centralized Repository Configuration
+
+##### `helm-repositories`
+- **Type**: array of objects
+- **Description**: Centralized definitions of Helm repositories that can be referenced by services.
+- **Example**:
+  ```yaml
+  helm-repositories:
+    - name: groundhog2k
+      url: https://groundhog2k.github.io/helm-charts/
+    - name: securecodebox
+      url: https://charts.securecodebox.io/
+  ```
+- **Notes**: 
+  - Each repository object must have `name` and `url` fields
+  - Services can reference these repositories using `repo.ref` instead of inline repository configuration
+  - Eliminates duplication when multiple services use the same repository
 
 #### Provider Configuration
 
@@ -788,6 +812,7 @@ environment:
 - **Type**: string
 - **Description**: Domain name to use for custom DNS resolution and wildcard certificates.
 - **Example**: `dev.me`
+
 
 ##### `local-lb-ports`
 - **Type**: array of integers
@@ -900,6 +925,12 @@ environment:
 - **Description**: Size of the PersistentVolumeClaim for service storage.
 - **Example**: `10Gi`
 
+###### `config.repo.ref`
+- **Type**: string
+- **Description**: Reference to a repository defined in `helm-repositories`.
+- **Example**: `groundhog2k`
+- **Notes**: Alternative to inline repository configuration. References repository by name from centralized `helm-repositories` list.
+
 ###### `config.chart`
 - **Type**: string
 - **Description**: Helm chart to use for the service.
@@ -928,6 +959,11 @@ environment:
   name: dev-me
   base-dir: ${PWD}/.local
   expand-env-vars: true
+
+  # Centralized repository definitions
+  helm-repositories:
+    - name: groundhog2k
+      url: https://groundhog2k.github.io/helm-charts/
 
   provider:
     name: kind
@@ -964,16 +1000,19 @@ environment:
 
   use-service-presets: true
   services:
-    - name: postgres
-      enabled: true
-      namespace: common-services
-      ports:
-        - 5432
-      storage:
-        size: 5Gi
-      config:
-        chart: groundhog2k/postgres
-        version: 16.7.9
+    system:
+      - name: postgres
+        enabled: true
+        namespace: common-services
+        ports:
+          - 5432
+        storage:
+          size: 5Gi
+        config:
+          repo:
+            ref: groundhog2k  # Reference to centralized repository
+          chart: groundhog2k/postgres
+          version: 16.7.9
 ```
 
 #### Multi-Node with Workload Separation
@@ -982,6 +1021,11 @@ environment:
   name: prod-cluster
   base-dir: ${PWD}/.local
   expand-env-vars: true
+
+  # Centralized repository definitions
+  helm-repositories:
+    - name: groundhog2k
+      url: https://groundhog2k.github.io/helm-charts/
 
   provider:
     name: kind
@@ -1034,26 +1078,31 @@ environment:
   run-services-on-workers-only: true  # Services on workers only
 
   services:
-    - name: postgres
-      enabled: true
-      namespace: common-services
-      ports:
-        - 5432
-      storage:
-        size: 20Gi
-      config:
-        chart: groundhog2k/postgres
-        version: 16.7.9
-    - name: valkey
-      enabled: true
-      namespace: common-services
-      ports:
-        - 6379
-      storage:
-        size: 10Gi
-      config:
-        chart: groundhog2k/valkey
-        version: 3.0.9
+    system:
+      - name: postgres
+        enabled: true
+        namespace: common-services
+        ports:
+          - 5432
+        storage:
+          size: 20Gi
+        config:
+          repo:
+            ref: groundhog2k  # Reference to centralized repository
+          chart: groundhog2k/postgres
+          version: 16.7.9
+      - name: valkey
+        enabled: true
+        namespace: common-services
+        ports:
+          - 6379
+        storage:
+          size: 10Gi
+        config:
+          repo:
+            ref: groundhog2k  # Reference to centralized repository
+          chart: groundhog2k/valkey
+          version: 3.0.9
 ```
 
 ### Notes on Usage

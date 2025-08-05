@@ -1,2 +1,12 @@
 # DNS configuration for {{ env_name }} environment
+
+# Core infrastructure services
+address=/{{ registry_name }}.{{ local_domain }}/{{ local_ip }}
+
+# Enabled system and user services
+{% for service in services if service.enabled %}
+address=/{{ service.name }}.{{ local_domain }}/{{ local_ip }}
+{% endfor %}
+
+# Wildcard for unknown services (users can still deploy custom ingresses)
 address=/{{ local_domain }}/{{ local_ip }} 

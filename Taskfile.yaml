@@ -429,6 +429,7 @@ tasks:
     silent: true
     cmds:
       - task: utils:remove-completions
+
   
   status:
     desc: Show basic status information about the cluster and services
