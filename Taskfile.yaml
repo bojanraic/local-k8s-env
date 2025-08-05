@@ -34,7 +34,7 @@ tasks:
       - mise run deps
       - echo "✅ All dependencies installed"
       - echo "  ⚙️ Configuring shell completions..."
-      - task: utils:setup-completions
+      - task: setup-completions
       - echo "  👉 Please restart your shell or source your shell rc file to enable completions"
       - echo "  ✅ Done configuring shell completions"
       - echo "✅ Done checking dependencies"
