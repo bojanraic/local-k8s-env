@@ -158,7 +158,7 @@ environment:
             ref: groundhog2k # reference to helm-repositories entry
           chart: groundhog2k/rabbitmq # the chart to use
           # renovate: datasource=helm depName=rabbitmq
-          version: 2.1.3
+          version: 2.1.4
           values: 
             # RabbitMQ authentication handled automatically
             ingress:
