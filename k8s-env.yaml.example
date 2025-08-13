@@ -76,7 +76,7 @@ environment:
     - app-template: "4.2.0"
 
     # renovate: datasource=helm depName=ingress-nginx
-    - nginx-ingress: "4.13.0"
+    - nginx-ingress: "4.13.1"
 
     # renovate: datasource=helm depName=metrics-server
     - metrics-server: "3.13.0"
