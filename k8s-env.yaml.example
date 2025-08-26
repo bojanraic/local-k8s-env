@@ -11,12 +11,14 @@ environment:
                         # - OS variables (${PWD}, ${HOME}, ${USER}) in base-dir and helm values
                         # - k8s-env variables (${LOCAL_DOMAIN}, ${ENV_NAME}, etc.) in helm values
                         # Available k8s-env variables for use in helm values:
-                        # - ${ENV_NAME}       - environment name (e.g., "dev-me")
-                        # - ${USER_SUBDOMAIN} - subdomain for user apps (e.g., "app")
-                        # - ${LOCAL_DOMAIN}   - local domain (e.g., "dev.me") 
-                        # - ${LOCAL_IP}       - local IP address (e.g., "192.168.0.10")
-                        # - ${REGISTRY_NAME}  - registry name (e.g., "cr")
-                        # - ${REGISTRY_HOST}  - registry host (e.g., "cr.dev.me")
+                        # - ${ENV_NAME}         - environment name (e.g., "dev-me")
+                        # - ${APPS_SUBDOMAIN}   - subdomain for applications (e.g., "apps")
+                        # - ${LOCAL_DOMAIN}     - local domain (e.g., "dev.me") 
+                        # - ${LOCAL_APPS_DOMAIN}- domain for applications, either APPS_SUBDOMAIN.LOCAL_DOMAIN or LOCAL_DOMAIN
+                        #                        depending on use-apps-subdomain setting (e.g., "app.dev.me" or "dev.me")
+                        # - ${LOCAL_IP}         - local IP address (e.g., "192.168.0.10")
+                        # - ${REGISTRY_NAME}    - registry name (e.g., "cr")
+                        # - ${REGISTRY_HOST}    - registry host (e.g., "cr.dev.me")
 
   # At the moment, KinD on macOS has been tested, with a docker-compatible runtime
   # Podman has been tried out but it is not a first-class citizen with KinD so it is not supported as of yet
@@ -61,7 +63,8 @@ environment:
 
   local-ip: 192.168.0.10 # local ip, mapping to the host IP to use for DNS resolution and wildcard certificates
   local-domain: dev.me # a domain name to use for custom dns resolution and wildcard certificates
-  user-subdomain: app # subdomain for user applications (e.g., myapp.app.dev.me)
+  use-apps-subdomain: true # whether to use apps subdomain for applications (false = use direct domain)
+  apps-subdomain: apps # subdomain for applications (e.g., myapp.apps.dev.me)
   local-lb-ports: # list of ports to expose on the load balancer side, mapping to the host machine
     - 80 # http port for nginx ingress controller
     - 443 # https port for nginx ingress controller
@@ -217,9 +220,9 @@ environment:
                 nginx.ingress.kubernetes.io/ssl-redirect: "true"
                 nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
               hosts:
-                - host: echo.${USER_SUBDOMAIN}.${LOCAL_DOMAIN}
+                - host: echo.${LOCAL_APPS_DOMAIN}
                   paths:
                     - /
               tls:
                 - hosts:
-                    - echo.${USER_SUBDOMAIN}.${LOCAL_DOMAIN}
+                    - echo.${LOCAL_APPS_DOMAIN}

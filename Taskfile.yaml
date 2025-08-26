@@ -117,7 +117,11 @@ tasks:
       - |
         if [ ! -f {{.CERT_FILE}} ]; then
           echo "  🔐 Generating certificates using mkcert..."
-          mkcert -cert-file {{.CERT_FILE}} -key-file {{.KEY_FILE}} "*.{{.LOCAL_DOMAIN}}" "{{.LOCAL_DOMAIN}}" "*.{{.USER_SUBDOMAIN}}.{{.LOCAL_DOMAIN}}" "{{.USER_SUBDOMAIN}}.{{.LOCAL_DOMAIN}}"
+          if [ "{{.USE_APPS_SUBDOMAIN}}" = "true" ]; then
+            mkcert -cert-file {{.CERT_FILE}} -key-file {{.KEY_FILE}} "*.{{.LOCAL_DOMAIN}}" "{{.LOCAL_DOMAIN}}" "*.{{.APPS_SUBDOMAIN}}.{{.LOCAL_DOMAIN}}" "{{.APPS_SUBDOMAIN}}.{{.LOCAL_DOMAIN}}"
+          else
+            mkcert -cert-file {{.CERT_FILE}} -key-file {{.KEY_FILE}} "*.{{.LOCAL_DOMAIN}}" "{{.LOCAL_DOMAIN}}"
+          fi
         fi
       - |
         CAROOT=$(mkcert -CAROOT)

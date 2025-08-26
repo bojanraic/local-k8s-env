@@ -10,7 +10,7 @@ from pathlib import Path
 
 CACERT_FILE = "/etc/ssl/certs/mkcert-ca.pem"
 
-def generate_random_password(length=24):
+def generate_random_password(length=16):
     """Generate a secure random password"""
     alphabet = string.ascii_letters + string.digits + "!@#$%^&*"
     return ''.join(secrets.choice(alphabet) for _ in range(length))
@@ -260,6 +260,39 @@ def process_user_services(user_services, k8s_env_vars, expand_vars=True):
         
         # For user services, use values from config with variable expansion
         base_values = config.get('values', {})
+        
+        # Replace instances of ${APPS_SUBDOMAIN}.${LOCAL_DOMAIN} with ${LOCAL_APPS_DOMAIN}
+        # This simplifies configuration and makes it more intuitive
+        if 'ingress' in base_values and isinstance(base_values['ingress'], dict):
+            ingress_config = base_values['ingress']
+            
+            # Process hosts if they exist
+            if 'hosts' in ingress_config and isinstance(ingress_config['hosts'], list):
+                for i, host_entry in enumerate(ingress_config['hosts']):
+                    if isinstance(host_entry, dict) and 'host' in host_entry:
+                        host = host_entry['host']
+                        # Handle both old and new variable names for backward compatibility
+                        if '${USER_SUBDOMAIN}.${LOCAL_DOMAIN}' in host:
+                            # Replace with the new variable
+                            host_entry['host'] = host.replace('${USER_SUBDOMAIN}.${LOCAL_DOMAIN}', '${LOCAL_APPS_DOMAIN}')
+                        elif '${APPS_SUBDOMAIN}.${LOCAL_DOMAIN}' in host:
+                            # Replace with the new variable
+                            host_entry['host'] = host.replace('${APPS_SUBDOMAIN}.${LOCAL_DOMAIN}', '${LOCAL_APPS_DOMAIN}')
+            
+            # Process TLS hosts if they exist
+            if 'tls' in ingress_config and isinstance(ingress_config['tls'], list):
+                for tls_entry in ingress_config['tls']:
+                    if isinstance(tls_entry, dict) and 'hosts' in tls_entry and isinstance(tls_entry['hosts'], list):
+                        for i, host in enumerate(tls_entry['hosts']):
+                            if isinstance(host, str):
+                                # Handle both old and new variable names for backward compatibility
+                                if '${USER_SUBDOMAIN}.${LOCAL_DOMAIN}' in host:
+                                    # Replace with the new variable
+                                    tls_entry['hosts'][i] = host.replace('${USER_SUBDOMAIN}.${LOCAL_DOMAIN}', '${LOCAL_APPS_DOMAIN}')
+                                elif '${APPS_SUBDOMAIN}.${LOCAL_DOMAIN}' in host:
+                                    # Replace with the new variable
+                                    tls_entry['hosts'][i] = host.replace('${APPS_SUBDOMAIN}.${LOCAL_DOMAIN}', '${LOCAL_APPS_DOMAIN}')
+        
         # First expand OS variables, then k8s-env variables
         expanded_values = expand_os_variables(base_values, expand_vars)
         expanded_values = expand_k8s_env_variables(expanded_values, k8s_env_vars, expand_vars)
@@ -331,14 +364,23 @@ def prepare_context(config):
     env = config['environment']
     expand_vars = env.get('expand-env-vars', True)
     
+    # Get apps subdomain configuration
+    use_apps_subdomain = env.get('use-apps-subdomain', True)
+    apps_subdomain = env.get('apps-subdomain', 'app')
+    
     # Build k8s-env variables dictionary (most commonly used in helm values)
+    # Create LOCAL_APPS_DOMAIN based on use_apps_subdomain setting
+    local_apps_domain = f"{apps_subdomain}.{env['local-domain']}" if use_apps_subdomain else env['local-domain']
+    
     k8s_env_vars = {
         'ENV_NAME': env['name'],
         'LOCAL_DOMAIN': env['local-domain'],
         'LOCAL_IP': env['local-ip'],
         'REGISTRY_NAME': env['registry']['name'],
         'REGISTRY_HOST': f"{env['registry']['name']}.{env['local-domain']}",
-        'USER_SUBDOMAIN': env.get('user-subdomain', 'app'),
+        'APPS_SUBDOMAIN': apps_subdomain,
+        'USE_APPS_SUBDOMAIN': str(use_apps_subdomain).lower(),
+        'LOCAL_APPS_DOMAIN': local_apps_domain,
     }
     
     processed_system_services = process_system_services(
@@ -375,7 +417,8 @@ def prepare_context(config):
         'env_name': env['name'],
         'local_ip': env['local-ip'],
         'local_domain': env['local-domain'],
-        'user_subdomain': env.get('user-subdomain', 'app'),
+        'apps_subdomain': apps_subdomain,
+        'use_apps_subdomain': use_apps_subdomain,
         'kubernetes': env['kubernetes'],
         'api_port': env['kubernetes']['api-port'],
         'nodes': env['nodes'],
@@ -442,7 +485,7 @@ def generate_resolver_file_mac(config, local_domain, local_ip):
     if not os.path.exists(resolver_dir):
         subprocess.run(['sudo', 'mkdir', '-p', resolver_dir], check=True)
     
-    resolver_content = f"search {local_domain}\nnameserver {local_ip}"
+    resolver_content = f"search {local_domain}\nnameserver {local_ip} 1.1.1.1"
     
     with open(f'/tmp/resolver_file_{local_domain}', 'w') as f:
         f.write(resolver_content)
@@ -463,16 +506,18 @@ def generate_resolver_file_linux(config, local_domain, local_ip):
         print("🔧 Configuring systemd-resolved...")
         subprocess.run(['sudo', 'sed', '-i', 's/#DNSStubListener=yes/DNSStubListener=no/', 
                        '/etc/systemd/resolved.conf'], check=True)
-        subprocess.run(['sudo', 'systemctl', 'restart', 'systemd-resolved'], check=True)
     except subprocess.CalledProcessError:
         print("⚠️  Warning: systemd-resolved not found")
+        return
     
     # Create drop-in directory
     dropin_dir = '/etc/systemd/resolved.conf.d'
     subprocess.run(['sudo', 'mkdir', '-p', dropin_dir], check=True)
     
-    # Generate config
-    resolver_content = f"[Resolve]\nDNS={local_ip}\nDomains={local_domain}"
+    # Generate config with simpler split DNS setup
+    # Use local_ip as primary DNS for local_domain
+    # Use public DNS servers as fallback for all other domains
+    resolver_content = f"[Resolve]\nDNS={local_ip}\nDomains={local_domain}\nFallbackDNS=1.1.1.1 8.8.8.8"
     temp_file = f'/tmp/resolver_{local_domain}.conf'
     final_file = f'{dropin_dir}/{local_domain}.conf'
     
@@ -484,6 +529,13 @@ def generate_resolver_file_linux(config, local_domain, local_ip):
     subprocess.run(['sudo', 'chown', 'root:root', final_file], check=True)
     subprocess.run(['sudo', 'chmod', '644', final_file], check=True)
     subprocess.run(['sudo', 'systemctl', 'restart', 'systemd-resolved'], check=True)
+    
+    # Restore the symlink to stub-resolv.conf if it's not already set up
+    try:
+        subprocess.run(['sudo', 'ln', '-sf', '/run/systemd/resolve/stub-resolv.conf', '/etc/resolv.conf'], check=True)
+        print("✅ Restored resolv.conf symlink to use systemd-resolved")
+    except subprocess.CalledProcessError:
+        print("⚠️  Warning: Could not restore resolv.conf symlink")
     
     print(f"✅ Resolver configuration created at {final_file}")
 

@@ -257,6 +257,8 @@ The environment is configured through `k8s-env.yaml`. Key configuration options:
 - `base-dir`: Directory for storing cluster data and configs
 - `local-ip`: Your local machine's IP address
 - `local-domain`: Domain for local services
+- `use-apps-subdomain`: Whether to use apps subdomain for applications (true/false)
+- `apps-subdomain`: Subdomain for applications (default: apps)
 - `nodes`: Control plane and worker node count
 - `enable-metrics-server`: Enable/disable metrics-server deployment (default: true)
 - `expand-env-vars`: Enable/disable variable expansion (default: true)
@@ -336,11 +338,14 @@ The environment uses a structured DNS approach to separate system services from 
    - No wildcard resolution for security
    - Example: `postgres.dev.me:5432`
 
-2. **User Applications** (`service.app.local.domain`):
+2. **Applications** (`${LOCAL_APPS_DOMAIN}`):
    - Custom applications and services
-   - All under `.app` subdomain
+   - Either under `.apps` subdomain (`service.apps.local.domain`) or direct domain (`service.local.domain`)
+   - Configurable via `use-apps-subdomain` setting (true/false)
+   - Uses the `LOCAL_APPS_DOMAIN` variable which automatically adjusts based on your settings
    - Wildcard DNS resolution
-   - Example: `myapp.app.dev.me`
+   - Example with subdomain: `myapp.apps.dev.me` (when `use-apps-subdomain: true`)
+   - Example without subdomain: `myapp.dev.me` (when `use-apps-subdomain: false`)
 
 3. **Core Infrastructure** (`service.local.domain`):
    - Registry service
@@ -399,11 +404,14 @@ Once the environment is running, services are accessible through:
    ```
 > NOTE: DNS resolution is handled by the local DNSMasq container, which is automatically started when you create or start the environment. It uses a structured approach:
 > - System services (databases, queues) use direct hostnames: `db.me.local`
-> - User applications use the configured subdomain: `some.${USER_SUBDOMAIN}.me.local` (default: app)
-> - Only the user subdomain allows wildcard resolution for security
-> - User subdomain can be configured via `user-subdomain` setting in k8s-env.yaml
+> - User applications can use either:
+>   - Configured subdomain: `some.${APPS_SUBDOMAIN}.me.local` (default: app) when `use-apps-subdomain: true`
+>   - Direct domain: `some.me.local` when `use-apps-subdomain: false`
+> - Wildcard DNS resolution is configured based on your subdomain setting
+> - Apps subdomain can be configured via `apps-subdomain` setting in k8s-env.yaml
+> - Whether to use the apps subdomain can be toggled with `use-apps-subdomain` setting
 > 
-> This separation ensures system service names can't be spoofed through DNS. TLS certificates are automatically generated and trusted for both the main domain and .app subdomain.
+> This separation ensures system service names can't be spoofed through DNS. TLS certificates are automatically generated and trusted for the appropriate domains based on your configuration.
 
 1. **Service Credentials**:
    - Passwords for password-protected services are automatically generated and stored in `<local-dir>/<env-name>/service-secrets.txt`

@@ -1,5 +1,9 @@
 # DNS configuration for {{ env_name }} environment
 
+# Use Google and Cloudflare DNS servers as upstream resolvers for non-local domains
+server=8.8.8.8
+server=1.1.1.1
+
 # Strict/exact match for registry and system services
 
 # Core infrastructure services (registry)
@@ -10,7 +14,12 @@ address=/{{ registry_name }}.{{ local_domain }}/{{ local_ip }}
 address=/{{ service.name }}.{{ local_domain }}/{{ local_ip }}
 {% endfor %}
 
-# Wildcard for dynamic user applications/services
-address=/*.{{ user_subdomain }}.{{ local_domain }}/{{ local_ip }}
+{% if use_apps_subdomain %}
+# Wildcard for dynamic applications with subdomain
+address=/*.{{ apps_subdomain }}.{{ local_domain }}/{{ local_ip }}
+{% else %}
+# Wildcard for dynamic applications without subdomain
+address=/*.{{ local_domain }}/{{ local_ip }}
+{% endif %}
 
 # Block any other subdomains by not providing a wildcard for {{ local_domain }}
