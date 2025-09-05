@@ -61,6 +61,17 @@ def generate_chart_auth_config(service_name, chart_name):
     
     return auth_configs.get(chart_basename, {})
 
+def deep_merge_dicts(source, destination):
+    """Deep merge two dictionaries."""
+    for key, value in source.items():
+        if isinstance(value, dict):
+            # get node or create it
+            node = destination.setdefault(key, {})
+            deep_merge_dicts(value, node)
+        else:
+            destination[key] = value
+    return destination
+
 def load_presets():
     """Load service ports and presets from service_presets.yaml"""
     # Get the directory containing this script
@@ -185,24 +196,26 @@ def process_system_services(system_services, service_ports, service_values_prese
                 'nameOverride': service_name
             })
             
-            # Add persistence configuration based on service storage
+            # Apply persistence configuration using deep merge
             if 'storage' in service and 'size' in service['storage']:
-                # For groundhog2k charts, use 'storage.requestedSize' instead of Bitnami's structure
+                storage_config = {}
+                # For groundhog2k charts, use 'storage.requestedSize'
                 if 'storage' in service_values_presets[service_name]:
-                    base_values['storage'] = base_values.get('storage', {})
-                    base_values['storage']['requestedSize'] = service['storage']['size']
+                    storage_config['storage'] = storage_config.get('storage', {})
+                    storage_config['storage']['requestedSize'] = service['storage']['size']
                 # Legacy support for Bitnami-style charts (if any remain)
                 elif 'primary' in service_values_presets[service_name]:
-                    base_values['primary'] = base_values.get('primary', {})
-                    base_values['primary']['persistence'] = {
+                    storage_config['primary'] = storage_config.get('primary', {})
+                    storage_config['primary']['persistence'] = {
                         'enabled': True,
                         'size': service['storage']['size']
                     }
                 elif 'persistence' in service_values_presets[service_name]:
-                    base_values['persistence'] = {
+                    storage_config['persistence'] = {
                         'enabled': True,
                         'size': service['storage']['size']
                     }
+                deep_merge_dicts(storage_config, base_values)
             
             # Generate and apply authentication configuration automatically
             chart_name = service.get('config', {}).get('chart', '')
@@ -255,8 +268,10 @@ def process_user_services(user_services, k8s_env_vars, expand_vars=True):
         # Validate required repo configuration for user services
         config = service.get('config', {})
         repo = config.get('repo', {})
-        if not isinstance(repo, dict) or 'name' not in repo or 'url' not in repo:
-            raise ValueError(f"User service '{service_name}' must have repo.name and repo.url configured")
+        if not isinstance(repo, dict) or not (
+            ('name' in repo and 'url' in repo) or 'ref' in repo
+        ):
+            raise ValueError(f"User service '{service_name}' must have either repo.name and repo.url, or repo.ref configured")
         
         # For user services, use values from config with variable expansion
         base_values = config.get('values', {})
@@ -366,7 +381,7 @@ def prepare_context(config):
     
     # Get apps subdomain configuration
     use_apps_subdomain = env.get('use-apps-subdomain', True)
-    apps_subdomain = env.get('apps-subdomain', 'app')
+    apps_subdomain = env.get('apps-subdomain', 'apps')
     
     # Build k8s-env variables dictionary (most commonly used in helm values)
     # Create LOCAL_APPS_DOMAIN based on use_apps_subdomain setting
@@ -435,7 +450,7 @@ def prepare_context(config):
         'app_template_version': get_internal_component(env, 'app-template'),
         'nginx_ingress_version': get_internal_component(env, 'nginx-ingress'),
         'metrics_server_version': get_internal_component(env, 'metrics-server'),
-        'cert_manager_version': get_internal_component(env, 'cert-manager'),
+
         'dnsmasq_version': get_internal_component(env, 'dnsmasq'),
         'service_ports': service_ports,
         'service_values_presets': service_values_presets,
@@ -592,10 +607,7 @@ def generate_config_files(context):
     with open(f"{config_dir}/helmfile.yaml", 'w') as f:
         f.write(helmfile_config)
     
-    # Generate cert-manager cluster-issuer config
-    cluster_issuer_config = render_template('cert-manager/cluster-issuer.yaml.j2', context)
-    with open(f"{config_dir}/cluster-issuer.yaml", 'w') as f:
-        f.write(cluster_issuer_config)
+
     
 
 def generate_configs(config_file, os_name):

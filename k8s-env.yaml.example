@@ -37,7 +37,7 @@ environment:
     servers: 1 # number of control-plane servers/masters
     workers: 1 # number of worker nodes
     allow-scheduling-on-control-plane: true # whether to allow scheduling on control plane nodes even when workers exist
-    internal-components-on-control-plane: true # whether to force internal components (cert-manager, nginx-ingress, registry) to run only on control-plane nodes
+    internal-components-on-control-plane: true # whether to force internal components (nginx-ingress, registry) to run only on control-plane nodes
 
     labels: # optional: custom labels to apply to nodes
       control-plane: # labels for ALL control-plane nodes (applied to each)
@@ -197,7 +197,7 @@ environment:
     #
     # DNS and Ingress Structure:
     # - System services use: service.local.domain (e.g., mysql.dev.me)
-    # - User services use: service.app.local.domain (e.g., myapp.app.dev.me)
+    # - User services use: service.apps.local.domain (e.g., myapp.apps.dev.me)
     # - Registry uses: registry.local.domain (e.g., cr.dev.me)
     # This separation provides better security by isolating system services from user applications
 

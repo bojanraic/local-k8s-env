@@ -104,7 +104,6 @@ tasks:
       - |
         echo "  📦 Installing/upgrading Helm charts for enabled services..."
         helmfile --file {{.K8S_DIR}}/config/helmfile.yaml \
-          --selector 'name!=cert-manager' \
           apply --kubeconfig {{.KUBECONFIG_PATH}} --skip-diff-on-install --suppress-diff
       - echo "✅ Services deployed successfully"
     status:

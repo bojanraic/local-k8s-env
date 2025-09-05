@@ -13,7 +13,7 @@ The application is built from a minimal BusyBox image and serves a static HTML p
 
 ## Features
 
-- **Automatic TLS**: Uses cert-manager annotations for automatic certificate generation
+- **Automatic TLS**: Uses mkcert-generated wildcard certificate for local development
 - **Configurable domains**: Override default values using `--set` parameters
 - **OCI registry support**: Can be packaged and deployed as OCI artifacts
 - **Health checks**: Built-in liveness and readiness probes
@@ -62,20 +62,13 @@ helm install demo-app ./helm-chart \
 | `ingress.enabled` | Enable ingress | `true` |
 | `ingress.className` | Ingress class name | `nginx` |
 | `ingress.hosts[0].host` | Hostname | `registry-test.local` |
-| `ingress.annotations` | Ingress annotations | cert-manager and nginx configs |
+| `ingress.annotations` | Ingress annotations | nginx configs |
 
 **Note**: The chart uses sensible defaults that should be overridden for your environment using `--set` parameters during deployment.
 
 ## TLS Configuration
 
-The chart uses cert-manager annotations for automatic TLS certificate generation:
-
-```yaml
-annotations:
-  cert-manager.io/cluster-issuer: "mkcert-issuer"
-  cert-manager.io/duration: "72h"
-  cert-manager.io/renew-before: "36h"
-```
+The chart uses mkcert-generated wildcard certificates for local development. TLS certificates are automatically generated and trusted for local domains.
 
 ## Usage with Task
 

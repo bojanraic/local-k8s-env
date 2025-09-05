@@ -96,7 +96,17 @@ vars:
 
   # DNS-related vars
   RESOLVER_DIR: /etc/resolver
-  RESOLVER_FILE: /etc/resolver/{{.LOCAL_DOMAIN}}
+  RESOLVER_FILE:
+    sh: |
+      OS_TYPE="$(echo {{.OS}} | tr '[:upper:]' '[:lower:]')"
+      if [ "$OS_TYPE" = "darwin" ]; then
+        echo "/etc/resolver/{{.LOCAL_DOMAIN}}"
+      elif [ "$OS_TYPE" = "linux" ]; then
+        echo "/etc/systemd/resolved.conf.d/{{.LOCAL_DOMAIN}}.conf"
+      else
+        echo "Unsupported OS: {{.OS}}" >&2
+        exit 1
+      fi
 
   # Kubeconfig vars
   KUBECONFIG: "{{.K8S_DIR}}/kubeconfig"

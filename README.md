@@ -83,7 +83,7 @@ This will display:
 - **DNS Status**: Status of the local DNS service
 - **Node Status**: List of all nodes with their roles and status
 - **Namespace Status**: Overview of all namespaces
-- **Service Status**: Status of system services (cert-manager, ingress-nginx, registry)
+- **Service Status**: Status of system services (ingress-nginx, registry)
 - **User Namespaces**: Detailed view of user-created namespaces with pods and services
 - **Enabled Services**: Status of enabled services from your configuration
 
@@ -471,18 +471,24 @@ nodes:
       tier: "application"
       environment: "production"
     individual: # Override specific nodes
-      control-plane-0:
+      control-plane-0: # labels for first control-plane node
+        tier: "control"
         zone: "us-west-1a"
-        primary: "true"
-      worker-0:
+      control-plane-1: # labels for second control-plane node  
+        tier: "control"
+        zone: "us-west-1b"
+      worker-0: # labels for first worker node
+        tier: "compute"
         zone: "us-west-1a"
-        workload-type: "cpu-intensive"
+      worker-1: # labels for second worker node
+        tier: "compute" 
+        zone: "us-west-1b"
 ```
 
 ### Scheduling Flags
 
 #### `internal-components-on-control-plane`
-Forces infrastructure components (cert-manager, nginx-ingress, registry) to run only on control-plane nodes:
+Forces infrastructure components (nginx-ingress, registry) to run only on control-plane nodes:
 
 ```yaml
 nodes:
@@ -681,6 +687,9 @@ environment:
   
   # Centralized repository definitions
   helm-repositories: array        # List of Helm repositories
+  # Example:
+  #   - name: groundhog2k
+  #     url: https://groundhog2k.github.io/helm-charts/
   
   # Provider configuration
   provider:
@@ -701,8 +710,10 @@ environment:
   
   # Network configuration
   local-ip: string                # Local IP for DNS resolution
-  local-domain: string            # Local domain for DNS resolution
+  local-domain: string            # Domain name to use for custom DNS resolution and wildcard certificates.
   local-lb-ports: array           # Load balancer ports
+  use-apps-subdomain: boolean     # Whether to use apps subdomain for applications (true/false)
+  apps-subdomain: string          # Subdomain for applications (default: apps)
   
   # Registry configuration
   registry:
@@ -715,7 +726,11 @@ environment:
   
   # Service configuration
   use-service-presets: boolean    # Whether to use service presets
-  services: array                 # List of services to deploy
+  run-services-on-workers-only: boolean # Whether to force application services to run only on worker nodes (when workers > 0)
+  enable-metrics-server: boolean  # Whether to deploy metrics-server for resource monitoring and HPA
+  services:
+    system: array                 # List of system services to deploy (e.g., databases, message queues)
+    user: array                   # List of user-defined services to deploy
 ```
 
 ### Detailed Field Descriptions
@@ -791,7 +806,7 @@ environment:
 ##### `kubernetes.tag`
 - **Type**: string
 - **Description**: Tag for the KinD node image.
-- **Example**: `v1.32.3`
+- **Example**: `v1.33.2`
 
 #### Node Configuration
 
@@ -815,7 +830,7 @@ environment:
 
 ##### `nodes.internal-components-on-control-plane`
 - **Type**: boolean
-- **Description**: Whether to force internal components (cert-manager, nginx-ingress, registry) to run only on control-plane nodes.
+- **Description**: Whether to force internal components (nginx-ingress, registry) to run only on control-plane nodes.
 - **Default**: false
 - **Example**: true
 - **Notes**: Requires `allow-scheduling-on-control-plane: true` to be effective. Useful for reserving worker nodes for application workloads.
@@ -834,11 +849,17 @@ environment:
       environment: "production"
     individual: # Override specific nodes
       control-plane-0:
+        tier: "control"
         zone: "us-west-1a"
-        primary: "true"
+      control-plane-1:
+        tier: "control"
+        zone: "us-west-1b"
       worker-0:
+        tier: "compute"
         zone: "us-west-1a"
-        workload-type: "cpu-intensive"
+      worker-1:
+        tier: "compute" 
+        zone: "us-west-1b"
   ```
 - **Notes**: 
   - `control-plane` and `worker` labels are applied to all nodes of that type
@@ -868,6 +889,20 @@ environment:
     - 443 # HTTPS port for nginx ingress controller
   ```
 
+##### `use-apps-subdomain`
+- **Type**: boolean
+- **Description**: Whether to use apps subdomain for applications (true/false).
+- **Default**: true
+- **Example**: true
+- **Notes**: When true, applications will be accessible via a subdomain (e.g., `myapp.apps.dev.me`), otherwise directly via a domain (e.g., `myapp.dev.me`).
+
+##### `apps-subdomain`
+- **Type**: string
+- **Description**: Subdomain for applications (default: apps). Only used when `use-apps-subdomain` is true.
+- **Default**: "apps"
+- **Example**: "app"
+- **Notes**: This subdomain is appended to the `local-domain` to form the full application domain.
+
 #### Registry Configuration
 
 ##### `registry.name`
@@ -888,9 +923,9 @@ environment:
 - **Example**:
   ```yaml
   internal-components:
-    - cert-manager: "v1.17.1"
-    - app-template: "3.7.3"
-    - nginx-ingress: "4.12.1"
+    - app-template: "4.2.0"
+    - nginx-ingress: "4.13.1"
+    - metrics-server: "3.13.0"
     - registry: "3"
     - dnsmasq: "2.91"
   ```
@@ -914,6 +949,12 @@ environment:
   - Only takes effect when `workers > 0`, otherwise services can run anywhere
   - Useful for separating infrastructure (control-plane) from application workloads (workers)
   - Applies to all enabled services in the `services` array
+
+##### `enable-metrics-server`
+- **Type**: boolean
+- **Description**: Whether to deploy metrics-server for resource monitoring and HPA.
+- **Default**: false
+- **Example**: true
 
 ##### `services`
 - **Type**: array of objects
@@ -972,7 +1013,11 @@ environment:
 ###### `config.repo.ref`
 - **Type**: string
 - **Description**: Reference to a repository defined in `helm-repositories`.
-- **Example**: `groundhog2k`
+- **Example**:
+  ```yaml
+  repo:
+    ref: groundhog2k
+  ```
 - **Notes**: Alternative to inline repository configuration. References repository by name from centralized `helm-repositories` list.
 
 ###### `config.chart`
@@ -1036,7 +1081,6 @@ environment:
       size: 15Gi
 
   internal-components:
-    - cert-manager: "v1.17.2"
     - app-template: "4.0.1"
     - nginx-ingress: "4.12.3"
     - registry: "3"
@@ -1112,7 +1156,6 @@ environment:
       size: 50Gi
 
   internal-components:
-    - cert-manager: "v1.17.2"
     - app-template: "4.0.1"
     - nginx-ingress: "4.12.3"
     - registry: "3"
@@ -1120,6 +1163,7 @@ environment:
 
   use-service-presets: true
   run-services-on-workers-only: true  # Services on workers only
+  enable-metrics-server: true  # Enable metrics-server
 
   services:
     system:
@@ -1162,7 +1206,6 @@ environment:
    - `containerd.yaml`: Containerd configuration
    - `dnsmasq.conf`: DNS configuration
    - `helmfile.yaml`: Helmfile configuration
-   - `cluster-issuer.yaml`: Cert-manager cluster issuer configuration
 
 5. The script requires sudo privileges to configure DNS resolvers on the host system.
 

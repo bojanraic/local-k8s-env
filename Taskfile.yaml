@@ -60,37 +60,12 @@ tasks:
     silent: true
     deps: [check-deps, check-runtime]
     cmds:
-      - task: generate-dirs
       - task: generate-configs
       - task: setup-certificates
       - task: ensure-network
-      - task: setup-dnsmasq
     status:
       - test -d "{{.K8S_DIR}}/config"
       - test -f "{{.K8S_DIR}}/config/cluster.yaml"
-
-  generate-dirs:
-    desc: Create necessary directories
-    silent: true
-    cmds:
-      - echo "🔄 Creating directories..."
-      - |
-        if [ {{.SERVERS}} -ge 1 ]; then
-          echo "  📁 Creating control plane directories..."
-          for i in $(seq 0 $(expr {{.SERVERS}} - 1)); do
-            mkdir -p {{.K8S_DIR}}/logs/control-$i
-            mkdir -p {{.K8S_DIR}}/storage/control-$i
-          done
-        fi
-        if [ {{.WORKERS}} -ge 1 ]; then
-          echo "  📁 Creating worker node directories..."
-          for i in $(seq 0 $(expr {{.WORKERS}} - 1)); do
-            mkdir -p {{.K8S_DIR}}/logs/worker-$i
-            mkdir -p {{.K8S_DIR}}/storage/worker-$i
-          done
-        fi
-      - mkdir -p {{.K8S_DIR}}/config
-      - echo "✅ Directories created"
 
   generate-configs:
     desc: Generate all configuration files
@@ -118,7 +93,7 @@ tasks:
         if [ ! -f {{.CERT_FILE}} ]; then
           echo "  🔐 Generating certificates using mkcert..."
           if [ "{{.USE_APPS_SUBDOMAIN}}" = "true" ]; then
-            mkcert -cert-file {{.CERT_FILE}} -key-file {{.KEY_FILE}} "*.{{.LOCAL_DOMAIN}}" "{{.LOCAL_DOMAIN}}" "*.{{.APPS_SUBDOMAIN}}.{{.LOCAL_DOMAIN}}" "{{.APPS_SUBDOMAIN}}.{{.LOCAL_DOMAIN}}"
+            mkcert -cert-file {{.CERT_FILE}} -key-file {{.KEY_FILE}} "*.{{.LOCAL_DOMAIN}}" "*.{{.APPS_SUBDOMAIN}}.{{.LOCAL_DOMAIN}}"
           else
             mkcert -cert-file {{.CERT_FILE}} -key-file {{.KEY_FILE}} "*.{{.LOCAL_DOMAIN}}" "{{.LOCAL_DOMAIN}}"
           fi
@@ -139,7 +114,6 @@ tasks:
         cp {{.CERT_DIR}}/rootCA.pem {{.DOCKER_CERT_DIR}}/ca.crt
       - echo "✅ Certificates setup complete"
     status:
-      - test -f "{{.ROOT_CA_PATH}}/rootCA.pem"
       - test -f {{.CERT_DIR}}/rootCA.pem
       - test -f {{.CERT_DIR}}/rootCA-key.pem
       - test -f {{.CERT_FILE}}
@@ -147,29 +121,6 @@ tasks:
       - test -f {{.COMBINED_FILE}}
       - test -f {{.CONTAINERD_CERT_DIR}}/ca.crt
       - test -f {{.DOCKER_CERT_DIR}}/ca.crt
-
-  setup-dnsmasq:
-    desc: Setup dnsmasq configuration
-    silent: true
-    cmds:
-      - echo "🔄 Setting up dnsmasq..."
-      # Create resolver configuration
-      - sudo mkdir -p {{.RESOLVER_DIR}}
-      - |
-        echo "nameserver {{.LOCAL_IP}}" | sudo tee {{.RESOLVER_FILE}} > /dev/null
-        echo "port {{.DNS_PORT}}" | sudo tee -a {{.RESOLVER_FILE}} > /dev/null
-      - |
-        OS_TYPE="$(echo {{.OS}} | tr '[:upper:]' '[:lower:]')"
-        if [ "$OS_TYPE" = "darwin" ]; then
-          sudo chown root:wheel {{.RESOLVER_FILE}}
-        else
-          sudo chown root:root {{.RESOLVER_FILE}}
-        fi
-      - sudo chmod 644 {{.RESOLVER_FILE}}
-      - echo "✅ Dnsmasq setup complete"
-    status:
-      - test -f {{.K8S_DIR}}/config/dnsmasq.conf
-      - test -f {{.RESOLVER_FILE}}
 
   start-dnsmasq:
     desc: Start dnsmasq container
@@ -344,17 +295,15 @@ tasks:
       - |
         {{.PROVIDER_BINARY}} delete cluster --name {{.CLUSTER_NAME}}
       - |
-        if [[ "$(echo {{.OS}} | tr '[:upper:]' '[:lower:]')" == "darwin" ]]; then
-          sudo rm -f /etc/resolver/{{.LOCAL_DOMAIN}}
-          rm -rf {{.K8S_DIR}}
-        elif [[ "$(echo {{.OS}} | tr '[:upper:]' '[:lower:]')" == "linux" ]]; then
-          sudo rm -f /etc/systemd/resolved.conf.d/{{.LOCAL_DOMAIN}}.conf
-          sleep 2
-          sudo systemctl restart systemd-resolved
-          sudo rm -rf {{.K8S_DIR}}
-        else
-          echo "Unsupported OS: {{.OS}}"
+        OS_TYPE="$(echo {{.OS}} | tr '[:upper:]' '[:lower:]')"
+        if [ "$OS_TYPE" = "darwin" ] || [ "$OS_TYPE" = "linux" ]; then
+          sudo rm -f {{.RESOLVER_FILE}}
+          if [ "$OS_TYPE" = "linux" ]; then
+            sleep 2
+            sudo systemctl restart systemd-resolved
+          fi
         fi
+        rm -rf {{.K8S_DIR}}
       - echo "✅ Local environment '{{.ENV_NAME}}' destroyed"
 
   recreate-env:
@@ -504,7 +453,7 @@ tasks:
               } else if ($i ~ /control-plane|worker|master/) {
                 if (roles != "") roles = roles ", ";
                 roles = roles $i;
-              } else if ($i ~ /^[0-9]+[a-z]+$/) {
+              } else if ($i ~ /^[0-9]+(d|h|m|s)?$/) { # More flexible regex for age
                 age = $i;
               }
             }
@@ -519,15 +468,7 @@ tasks:
         # Show namespace status
         echo -e "\n📊 Namespace Status:"
         kubectl --kubeconfig {{.KUBECONFIG_PATH}} get namespaces -o custom-columns=NAME:.metadata.name,STATUS:.status.phase,AGE:.metadata.creationTimestamp | sed '1!s/^/├── /'
-        
-        # Show cert-manager status
-        echo -e "\n📊 cert-manager Status:"
-        if kubectl --kubeconfig {{.KUBECONFIG_PATH}} get namespace cert-manager >/dev/null 2>&1; then
-          kubectl --kubeconfig {{.KUBECONFIG_PATH}} get pods -n cert-manager --no-headers 2>/dev/null | awk '{print "├── " $1 "\t" $3 "/" $2 "\t" "Restarts: " $4 "\t" "Age: " $5}' || echo "├── No pods found"
-        else
-          echo "├── cert-manager not installed"
-        fi
-        
+
         # Show ingress-nginx status
         echo -e "\n📊 ingress-nginx Status:"
         if kubectl --kubeconfig {{.KUBECONFIG_PATH}} get namespace ingress-nginx >/dev/null 2>&1; then
@@ -567,7 +508,7 @@ tasks:
         # Show non-system namespaces
         echo -e "\n📊 User Namespaces:"
         # List of system namespaces to exclude
-        SYSTEM_NS=("kube-system" "kube-public" "kube-node-lease" "local-path-storage" "cert-manager" "ingress-nginx" "registry")
+        SYSTEM_NS=("kube-system" "kube-public" "kube-node-lease" "local-path-storage" "ingress-nginx" "registry")
         
         # Get all namespaces and filter out system ones
         ALL_NAMESPACES=$(kubectl --kubeconfig {{.KUBECONFIG_PATH}} get ns --no-headers -o custom-columns=":metadata.name" 2>/dev/null || echo "")
@@ -623,28 +564,22 @@ tasks:
         # Show enabled services status
         echo -e "\n📊 Enabled Services Status:"
         
-        # Get all enabled services and group them by namespace
+        # Get all enabled services (system and user) and their namespaces
+        SERVICES_INFO=$(yq e '.environment.services | .system[]? + .user[]? | select(.enabled == true) | "\(.name):\(.namespace // .name)"' {{.CONFIG_FILE}} 2>/dev/null || echo "")
+        
         declare -A NAMESPACE_SERVICES
         
-        # Get system services
-        while IFS= read -r service; do
-          if [ -n "$service" ]; then
-            ns=$(yq e ".environment.services.system[]? | select(.name == \"$service\") | .namespace // .name" {{.CONFIG_FILE}} 2>/dev/null || echo "")
-            if [ -n "$ns" ]; then
-              NAMESPACE_SERVICES["$ns"]+=" $service"
-            fi
+        for SERVICE_ENTRY in $SERVICES_INFO; do
+          SERVICE_NAME=$(echo "$SERVICE_ENTRY" | cut -d':' -f1)
+          SERVICE_NS=$(echo "$SERVICE_ENTRY" | cut -d':' -f2)
+
+          # Validate namespace name conforms to Kubernetes naming conventions (RFC 1123)
+          if [[ "$SERVICE_NS" =~ ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$ && ${#SERVICE_NS} -le 63 ]]; then
+            NAMESPACE_SERVICES["$SERVICE_NS"]+=" $SERVICE_NAME"
+          else
+            echo "⚠️  Warning: Service '$SERVICE_NAME' has an invalid namespace '$SERVICE_NS'. Skipping." >&2
           fi
-        done < <(yq e '.environment.services.system[]? | select(.enabled == true) | .name' {{.CONFIG_FILE}} 2>/dev/null || echo "")
-        
-        # Get user services
-        while IFS= read -r service; do
-          if [ -n "$service" ]; then
-            ns=$(yq e ".environment.services.user[]? | select(.name == \"$service\") | .namespace // .name" {{.CONFIG_FILE}} 2>/dev/null || echo "")
-            if [ -n "$ns" ]; then
-              NAMESPACE_SERVICES["$ns"]+=" $service"
-            fi
-          fi
-        done < <(yq e '.environment.services.user[]? | select(.enabled == true) | .name' {{.CONFIG_FILE}} 2>/dev/null || echo "")
+        done
         
         if [ ${#NAMESPACE_SERVICES[@]} -eq 0 ]; then
           echo "├── No enabled services found"
