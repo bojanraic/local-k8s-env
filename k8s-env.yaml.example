@@ -146,7 +146,7 @@ environment:
             ref: groundhog2k # reference to helm-repositories entry
           chart: groundhog2k/mongodb # the chart to use
           # renovate: datasource=helm depName=mongodb
-          version: 0.7.3
+          version: 0.7.4
           # MongoDB authentication and persistence handled automatically
 
       - name: rabbitmq
