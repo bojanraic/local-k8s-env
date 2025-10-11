@@ -131,7 +131,7 @@ environment:
             ref: groundhog2k # reference to helm-repositories entry
           chart: groundhog2k/postgres # the chart to use
           # renovate: datasource=helm depName=postgres
-          version: 1.5.8
+          version: 1.5.9
           # PostgreSQL authentication and persistence handled automatically
 
       - name: mongodb
