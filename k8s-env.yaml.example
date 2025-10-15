@@ -76,7 +76,7 @@ environment:
 
   internal-components:
     # renovate: datasource=helm depName=app-template
-    - app-template: "4.3.0"
+    - app-template: "4.4.0"
 
     # renovate: datasource=helm depName=ingress-nginx
     - nginx-ingress: "4.13.3"
