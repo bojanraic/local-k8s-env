@@ -924,7 +924,7 @@ environment:
   ```yaml
   internal-components:
     - app-template: "4.2.0"
-    - traefik: "33.2.1"
+    - traefik: "37.3.0"
     - metrics-server: "3.13.0"
     - registry: "3"
     - dnsmasq: "2.91"
@@ -971,7 +971,7 @@ environment:
         size: 10Gi
       config:
         chart: groundhog2k/mysql
-        version: 12.3.2
+        version: 3.0.7
         values:
           auth:
             createDatabase: false
@@ -1061,7 +1061,7 @@ environment:
   kubernetes:
     api-port: 6443
     image: kindest/node
-    tag: v1.33.1
+    tag: v1.34.0
 
   nodes:
     servers: 1
@@ -1081,8 +1081,8 @@ environment:
       size: 15Gi
 
   internal-components:
-    - app-template: "4.0.1"
-    - traefik: "33.2.1"
+    - app-template: "4.4.0"
+    - traefik: "37.3.0"
     - registry: "3"
     - dnsmasq: "2.91"
 
@@ -1100,7 +1100,7 @@ environment:
           repo:
             ref: groundhog2k  # Reference to centralized repository
           chart: groundhog2k/postgres
-          version: 16.7.9
+          version: 1.6.0
 ```
 
 #### Multi-Node with Workload Separation
@@ -1122,7 +1122,7 @@ environment:
   kubernetes:
     api-port: 6443
     image: kindest/node
-    tag: v1.33.1
+    tag: v1.34.0
 
   nodes:
     servers: 3
@@ -1156,8 +1156,8 @@ environment:
       size: 50Gi
 
   internal-components:
-    - app-template: "4.0.1"
-    - traefik: "33.2.1"
+    - app-template: "4.4.0"
+    - traefik: "37.3.0"
     - registry: "3"
     - dnsmasq: "2.91"
 
@@ -1178,7 +1178,7 @@ environment:
           repo:
             ref: groundhog2k  # Reference to centralized repository
           chart: groundhog2k/postgres
-          version: 16.7.9
+          version: 1.6.0
       - name: valkey
         enabled: true
         namespace: common-services
@@ -1190,7 +1190,7 @@ environment:
           repo:
             ref: groundhog2k  # Reference to centralized repository
           chart: groundhog2k/valkey
-          version: 3.0.9
+          version: 2.2.1
 ```
 
 ### Notes on Usage
