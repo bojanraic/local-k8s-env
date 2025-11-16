@@ -27,10 +27,10 @@ service:
 
 ingress:
   enabled: true
-  className: "nginx"
+  className: "traefik"
   annotations:
-    nginx.ingress.kubernetes.io/ssl-redirect: "true"
-    nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
+    traefik.ingress.kubernetes.io/router.entrypoints: websecure
+    traefik.ingress.kubernetes.io/router.tls: "true"
   hosts:
     - host: registry-test.app.local 
       paths:

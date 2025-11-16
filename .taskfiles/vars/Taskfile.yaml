@@ -80,8 +80,8 @@ vars:
       USER_SERVICES=$(yq e '.environment.services.user[]? | select(.enabled == true) | .name + ":user"' {{.CONFIG_FILE}} 2>/dev/null || echo "")
       # Combine and output
       echo "$SYSTEM_SERVICES $USER_SERVICES" | xargs
-  NGINX_INGRESS_VERSION:
-    sh: yq e '.environment.internal-components[] | select(has("nginx-ingress")) | .["nginx-ingress"]' {{.CONFIG_FILE}}
+  TRAEFIK_VERSION:
+    sh: yq e '.environment.internal-components[] | select(has("traefik")) | .traefik' {{.CONFIG_FILE}}
   ROOT_DIR: '{{.ROOT_DIR}}'
   DNS_PORT:
     sh: yq e '.environment.dns.port // "53"' {{.CONFIG_FILE}}

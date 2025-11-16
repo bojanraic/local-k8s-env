@@ -83,7 +83,7 @@ This will display:
 - **DNS Status**: Status of the local DNS service
 - **Node Status**: List of all nodes with their roles and status
 - **Namespace Status**: Overview of all namespaces
-- **Service Status**: Status of system services (ingress-nginx, registry)
+- **Service Status**: Status of system services (Traefik, registry)
 - **User Namespaces**: Detailed view of user-created namespaces with pods and services
 - **Enabled Services**: Status of enabled services from your configuration
 
@@ -488,7 +488,7 @@ nodes:
 ### Scheduling Flags
 
 #### `internal-components-on-control-plane`
-Forces infrastructure components (nginx-ingress, registry) to run only on control-plane nodes:
+Forces infrastructure components (Traefik ingress, registry) to run only on control-plane nodes:
 
 ```yaml
 nodes:
@@ -830,7 +830,7 @@ environment:
 
 ##### `nodes.internal-components-on-control-plane`
 - **Type**: boolean
-- **Description**: Whether to force internal components (nginx-ingress, registry) to run only on control-plane nodes.
+- **Description**: Whether to force internal components (Traefik ingress, registry) to run only on control-plane nodes.
 - **Default**: false
 - **Example**: true
 - **Notes**: Requires `allow-scheduling-on-control-plane: true` to be effective. Useful for reserving worker nodes for application workloads.
@@ -882,11 +882,11 @@ environment:
 ##### `local-lb-ports`
 - **Type**: array of integers
 - **Description**: List of ports to expose on the load balancer side, mapping to the host machine.
-- **Example**: 
+- **Example**:
   ```yaml
   local-lb-ports:
-    - 80  # HTTP port for nginx ingress controller
-    - 443 # HTTPS port for nginx ingress controller
+    - 80  # HTTP port for Traefik ingress controller
+    - 443 # HTTPS port for Traefik ingress controller
   ```
 
 ##### `use-apps-subdomain`
@@ -924,7 +924,7 @@ environment:
   ```yaml
   internal-components:
     - app-template: "4.2.0"
-    - nginx-ingress: "4.13.1"
+    - traefik: "33.2.1"
     - metrics-server: "3.13.0"
     - registry: "3"
     - dnsmasq: "2.91"
@@ -1082,7 +1082,7 @@ environment:
 
   internal-components:
     - app-template: "4.0.1"
-    - nginx-ingress: "4.12.3"
+    - traefik: "33.2.1"
     - registry: "3"
     - dnsmasq: "2.91"
 
@@ -1157,7 +1157,7 @@ environment:
 
   internal-components:
     - app-template: "4.0.1"
-    - nginx-ingress: "4.12.3"
+    - traefik: "33.2.1"
     - registry: "3"
     - dnsmasq: "2.91"
 

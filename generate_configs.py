@@ -448,7 +448,7 @@ def prepare_context(config):
         'registry_name': env['registry']['name'],
         'registry_version': get_internal_component(env, 'registry'),
         'app_template_version': get_internal_component(env, 'app-template'),
-        'nginx_ingress_version': get_internal_component(env, 'nginx-ingress'),
+        'traefik_version': get_internal_component(env, 'traefik'),
         'metrics_server_version': get_internal_component(env, 'metrics-server'),
 
         'dnsmasq_version': get_internal_component(env, 'dnsmasq'),
@@ -606,7 +606,12 @@ def generate_config_files(context):
     helmfile_config = render_template('helmfile/helmfile.yaml.j2', context)
     with open(f"{config_dir}/helmfile.yaml", 'w') as f:
         f.write(helmfile_config)
-    
+
+    # Generate Traefik TCP routes manifest
+    tcp_routes_config = render_template('traefik-tcp-routes.yaml.j2', context)
+    with open(f"{config_dir}/traefik-tcp-routes.yaml", 'w') as f:
+        f.write(tcp_routes_config)
+
 
     
 

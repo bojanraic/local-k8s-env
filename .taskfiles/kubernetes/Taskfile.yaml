@@ -5,21 +5,22 @@ tasks:
   default: task --list --taskfile "{{.ROOT_DIR}}/.taskfiles/kubernetes/Taskfile.yaml"
 
   wait-for-ready:
-    desc: Wait for the cluster to be ready
+    desc: Wait for the cluster to be ready and fix worker networking issues
     silent: true
     cmds:
       - |
         echo "⏳ Waiting for {{.PROVIDER}} cluster..."
-        
+
         # Set context and verify connection
         kubectl --kubeconfig {{.KUBECONFIG_PATH}} config use-context {{.PROVIDER}}-{{.CLUSTER_NAME}}
-        
+
         # Give the API server a moment to initialize
         sleep 3
-        
-        # Wait for all nodes to be ready
-        kubectl --kubeconfig {{.KUBECONFIG_PATH}} wait --for=condition=Ready nodes --all
-        echo "✅ Cluster is ready"
+
+        # Wait for all nodes to be ready with timeout
+        echo "  ⏱️  Waiting up to 2 mins for all nodes to become ready..."
+        kubectl --kubeconfig {{.KUBECONFIG_PATH}} wait --for=condition=Ready nodes --all --timeout=120s && echo "✅ All nodes are ready" || echo "  ⚠️  Warning: Some nodes still not ready"
+
 
   fetch-kubeconfig:
     desc: Fetch kubeconfig for the kubernetes cluster
@@ -42,14 +43,14 @@ tasks:
       - echo "🔄 Setting up Helm repositories..."
       - |
         # Add repositories if they don't exist
-        if ! helm repo list | grep -q "^ingress-nginx"; then
-          echo "  📦 Adding ingress-nginx repository..."
-          helm repo add ingress-nginx https://kubernetes.github.io/ingress-nginx >/dev/null
+        if ! helm repo list | grep -q "^traefik"; then
+          echo "  📦 Adding traefik repository..."
+          helm repo add traefik https://traefik.github.io/charts >/dev/null
         else
-          echo "  📦 Updating ingress-nginx repository..."
-          helm repo update ingress-nginx >/dev/null
+          echo "  📦 Updating traefik repository..."
+          helm repo update traefik >/dev/null
         fi
-        
+
         if ! helm repo list | grep -q "^groundhog2k"; then
           echo "  📦 Adding groundhog2k repository..."
           helm repo add groundhog2k https://groundhog2k.github.io/helm-charts/ >/dev/null
@@ -57,7 +58,7 @@ tasks:
           echo "  📦 Updating groundhog2k repository..."
           helm repo update groundhog2k >/dev/null
         fi
-        
+
         if ! helm repo list | grep -q "^bjw-s-labs"; then
           echo "  📦 Adding bjw-s-labs repository..."
           helm repo add bjw-s-labs https://bjw-s-labs.github.io/helm-charts/ >/dev/null
@@ -69,29 +70,29 @@ tasks:
     status:
       - |
         # Check if all required repositories are present
-        helm repo list | grep -q "ingress-nginx" && \
+        helm repo list | grep -q "traefik" && \
         helm repo list | grep -q "groundhog2k" && \
         helm repo list | grep -q "bjw-s-labs"
 
   setup-wildcard-cert:
-    desc: Create wildcard TLS certificate secret for nginx-ingress
+    desc: Create wildcard TLS certificate secret for Traefik
     silent: true
     cmds:
       - echo "🔄 Creating wildcard TLS secret..."
       - |
-        # Create kube-system namespace if it doesn't exist
-        kubectl --kubeconfig {{.KUBECONFIG_PATH}} create namespace kube-system --dry-run=client -o yaml | kubectl --kubeconfig {{.KUBECONFIG_PATH}} apply -f -
-        
-        # Create wildcard TLS secret
+        # Create traefik namespace if it doesn't exist
+        kubectl --kubeconfig {{.KUBECONFIG_PATH}} create namespace traefik --dry-run=client -o yaml | kubectl --kubeconfig {{.KUBECONFIG_PATH}} apply -f -
+
+        # Create wildcard TLS secret in traefik namespace
         kubectl --kubeconfig {{.KUBECONFIG_PATH}} create secret tls wildcard-tls \
-          --namespace kube-system \
+          --namespace traefik \
           --cert={{.CERT_FILE}} \
           --key={{.KEY_FILE}} \
           --dry-run=client -o yaml | \
           kubectl --kubeconfig {{.KUBECONFIG_PATH}} apply -f -
       - echo "✅ Wildcard TLS secret created"
     status:
-      - kubectl --kubeconfig {{.KUBECONFIG_PATH}} get secret wildcard-tls -n kube-system >/dev/null 2>&1
+      - kubectl --kubeconfig {{.KUBECONFIG_PATH}} get secret wildcard-tls -n traefik >/dev/null 2>&1
 
 
 
@@ -103,11 +104,20 @@ tasks:
       - echo "🔄 Deploying services..."
       - |
         echo "  📦 Installing/upgrading Helm charts for enabled services..."
-        helmfile --file {{.K8S_DIR}}/config/helmfile.yaml \
+        HELM_BIN="$(mise which helm)"
+        helmfile --helm-binary "$HELM_BIN" --file {{.K8S_DIR}}/config/helmfile.yaml \
           apply --kubeconfig {{.KUBECONFIG_PATH}} --skip-diff-on-install --suppress-diff
+      - |
+        # Apply Traefik TCP routes if any system services with TCP ports are enabled
+        if [ -f "{{.K8S_DIR}}/config/traefik-tcp-routes.yaml" ] && [ -s "{{.K8S_DIR}}/config/traefik-tcp-routes.yaml" ]; then
+          echo "  🔌 Applying Traefik TCP routes for system services..."
+          kubectl --kubeconfig {{.KUBECONFIG_PATH}} apply -f {{.K8S_DIR}}/config/traefik-tcp-routes.yaml
+        fi
       - echo "✅ Services deployed successfully"
     status:
-      - helmfile --file {{.K8S_DIR}}/config/helmfile.yaml status --kubeconfig {{.KUBECONFIG_PATH}}
+      - |
+        HELM_BIN="$(mise which helm)"
+        helmfile --helm-binary "$HELM_BIN" --file {{.K8S_DIR}}/config/helmfile.yaml status --kubeconfig {{.KUBECONFIG_PATH}}
 
   label-worker-nodes:
     desc: "Label worker/agent nodes with node-role.kubernetes.io/worker=true"
@@ -268,7 +278,8 @@ tasks:
     cmds:
       - |
         echo "🔄 Applying helmfile configuration..."
-        helmfile --file {{.K8S_DIR}}/config/helmfile.yaml apply
+        HELM_BIN="$(mise which helm)"
+        helmfile --helm-binary "$HELM_BIN" --file {{.K8S_DIR}}/config/helmfile.yaml apply --skip-diff-on-install
         echo "✅ Helmfile configuration applied"
 
   helmfile-destroy:
@@ -277,5 +288,6 @@ tasks:
     cmds:
       - |
         echo "🔄 Destroying helmfile configuration..."
-        helmfile --file {{.K8S_DIR}}/config/helmfile.yaml destroy
+        HELM_BIN="$(mise which helm)"
+        helmfile --helm-binary "$HELM_BIN" --file {{.K8S_DIR}}/config/helmfile.yaml destroy
         echo "✅ Helmfile configuration destroyed"

@@ -314,7 +314,7 @@ tasks:
             --set image.tag=test \
             --set image.repository=test \
             --set ingress.enabled=true \
-            --set ingress.className=nginx \
+            --set ingress.className=traefik \
             --set-string 'ingress.hosts[0].host={{if eq .USE_APPS_SUBDOMAIN "true"}}test.{{.APPS_SUBDOMAIN}}.{{.LOCAL_DOMAIN}}{{else}}test.{{.LOCAL_DOMAIN}}{{end}}' \
             --set 'ingress.hosts[0].paths[0].path=/' \
             > "$TEMP_DIR/manifests.yaml"

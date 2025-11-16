@@ -78,8 +78,8 @@ environment:
     # renovate: datasource=helm depName=app-template
     - app-template: "4.4.0"
 
-    # renovate: datasource=helm depName=ingress-nginx
-    - nginx-ingress: "4.14.0"
+    # renovate: datasource=helm depName=traefik repositoryUrl=https://traefik.github.io/charts
+    - traefik: "33.2.1"
 
     # renovate: datasource=helm depName=metrics-server
     - metrics-server: "3.13.0"
@@ -162,14 +162,14 @@ environment:
           chart: groundhog2k/rabbitmq # the chart to use
           # renovate: datasource=helm depName=rabbitmq
           version: 2.2.0
-          values: 
+          values:
             # RabbitMQ authentication handled automatically
             ingress:
               enabled: true
               hostname: rmq.${LOCAL_DOMAIN}
               annotations:
-                nginx.ingress.kubernetes.io/ssl-redirect: "true"
-                nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
+                traefik.ingress.kubernetes.io/router.entrypoints: websecure
+                traefik.ingress.kubernetes.io/router.tls: "true"
               tls:
                 - hosts:
                     - rmq.${LOCAL_DOMAIN}
@@ -212,13 +212,13 @@ environment:
           chart: securecodebox/http-webhook
           # renovate: datasource=helm depName=http-webhook
           version: 4.16.0
-          values: 
+          values:
             ingress:
               enabled: true
-              ingressClassName: "nginx"
+              ingressClassName: "traefik"
               annotations:
-                nginx.ingress.kubernetes.io/ssl-redirect: "true"
-                nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
+                traefik.ingress.kubernetes.io/router.entrypoints: websecure
+                traefik.ingress.kubernetes.io/router.tls: "true"
               hosts:
                 - host: echo.${LOCAL_APPS_DOMAIN}
                   paths:

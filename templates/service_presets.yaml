@@ -1,5 +1,5 @@
 # Default ports for services
-# Used to expose TCP services on the host machine via nginx ingress controller
+# Used to expose TCP services on the host machine via Traefik ingress controller
 service_ports:
   mysql: 3306
   postgres: 5432

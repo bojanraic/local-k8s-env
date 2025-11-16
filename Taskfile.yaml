@@ -469,12 +469,12 @@ tasks:
         echo -e "\n📊 Namespace Status:"
         kubectl --kubeconfig {{.KUBECONFIG_PATH}} get namespaces -o custom-columns=NAME:.metadata.name,STATUS:.status.phase,AGE:.metadata.creationTimestamp | sed '1!s/^/├── /'
 
-        # Show ingress-nginx status
-        echo -e "\n📊 ingress-nginx Status:"
-        if kubectl --kubeconfig {{.KUBECONFIG_PATH}} get namespace ingress-nginx >/dev/null 2>&1; then
-          kubectl --kubeconfig {{.KUBECONFIG_PATH}} get pods -n ingress-nginx --no-headers 2>/dev/null | awk '{print "├── " $1 "\t" $3 "/" $2 "\t" "Restarts: " $4 "\t" "Age: " $5}' || echo "├── No pods found"
+        # Show traefik status
+        echo -e "\n📊 Traefik Status:"
+        if kubectl --kubeconfig {{.KUBECONFIG_PATH}} get namespace traefik >/dev/null 2>&1; then
+          kubectl --kubeconfig {{.KUBECONFIG_PATH}} get pods -n traefik --no-headers 2>/dev/null | awk '{print "├── " $1 "\t" $3 "/" $2 "\t" "Restarts: " $4 "\t" "Age: " $5}' || echo "├── No pods found"
         else
-          echo "├── ingress-nginx not installed"
+          echo "├── Traefik not installed"
         fi
         
         # Show registry status
@@ -508,7 +508,7 @@ tasks:
         # Show non-system namespaces
         echo -e "\n📊 User Namespaces:"
         # List of system namespaces to exclude
-        SYSTEM_NS=("kube-system" "kube-public" "kube-node-lease" "local-path-storage" "ingress-nginx" "registry")
+        SYSTEM_NS=("kube-system" "kube-public" "kube-node-lease" "local-path-storage" "traefik" "registry")
         
         # Get all namespaces and filter out system ones
         ALL_NAMESPACES=$(kubectl --kubeconfig {{.KUBECONFIG_PATH}} get ns --no-headers -o custom-columns=":metadata.name" 2>/dev/null || echo "")
