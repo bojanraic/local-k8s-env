@@ -13,7 +13,7 @@ uv = "0.5.29"
 task = "3.45.5"
 
 # renovate: datasource=github-releases depName=mikefarah/yq
-yq = "v4.48.2"
+yq = "v4.49.1"
 
 # renovate: datasource=github-releases depName=jqlang/jq
 jq = "1.8.1"
