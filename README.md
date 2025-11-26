@@ -1,5 +1,7 @@
 # Local Kubernetes Development Environment
 
+> **⚠️ DEPRECATED**: This project has been reimplemented as a Python CLI tool. Please use [LoKO (Local Kubernetes Oasis)](https://github.com/bojanraic/loko) instead. This repository is no longer actively maintained.
+
 A robust and flexible local Kubernetes development environment setup using KinD, with support for local container registry, DNS resolution, HTTPS certificates, and various development services.
 
 ## Features
